@@ -6,18 +6,18 @@
 Use pnpm workspaces + Turborepo for fast, free dev across apps.
 
 - Root
-                - `package.json` (workspaces + scripts)
-                - `pnpm-workspace.yaml`
-                - `turbo.json`
-                - `.env` (root-only shared values) + per-app `.env.local`
+                                                                                                                                - `package.json` (workspaces + scripts)
+                                                                                                                                - `pnpm-workspace.yaml`
+                                                                                                                                - `turbo.json`
+                                                                                                                                - `.env` (root-only shared values) + per-app `.env.local`
 - Apps
-                - `apps/web/` Next.js 14 + Tailwind (voice/text UI)
-                - `apps/api/` Express + TypeScript + Prisma/SQLite (business logic + Google Calendar)
-                - `apps/mcp/` MCP server (tools: search_doctors, check_availability, book_appointment, geocode, parse_message)
-                - `apps/mobile/` Expo React Native (placeholder now; shares APIs and types)
+                                                                                                                                - `apps/web/` Next.js 14 + Tailwind (voice/text UI)
+                                                                                                                                - `apps/api/` Express + TypeScript + Prisma/SQLite (business logic + Google Calendar)
+                                                                                                                                - `apps/mcp/` MCP server (tools: search_doctors, check_availability, book_appointment, geocode, parse_message)
+                                                                                                                                - `apps/mobile/` Expo React Native (placeholder now; shares APIs and types)
 - Shared
-                - `packages/shared/` shared types (Doctor, Appointment, NLU entities), zod schemas
-                - `prisma/` schema + migrations
+                                                                                                                                - `packages/shared/` shared types (Doctor, Appointment, NLU entities), zod schemas
+                                                                                                                                - `prisma/` schema + migrations
 
 Minimal workspace files:
 
@@ -56,12 +56,12 @@ packages:
 ### 2) Backend (`apps/api/`) — Express + Prisma + Google Calendar
 
 - Endpoints (unchanged from earlier plan):
-                - `GET /auth/google/initiate`, `GET /auth/google/callback` (per-doctor OAuth)
-                - `GET /doctors/search` (nearest by specialty)
-                - `POST /availability` (free slots via Calendar freebusy)
-                - `POST /appointments/book` (create GCal event + persist)
-                - `GET /geocode` (proxy to Nominatim) — rate-limited
-                - `POST /nlu/parse` (rule-based; optional Ollama refinement)
+                                                                                                                                - `GET /auth/google/initiate`, `GET /auth/google/callback` (per-doctor OAuth)
+                                                                                                                                - `GET /doctors/search` (nearest by specialty)
+                                                                                                                                - `POST /availability` (free slots via Calendar freebusy)
+                                                                                                                                - `POST /appointments/book` (create GCal event + persist)
+                                                                                                                                - `GET /geocode` (proxy to Nominatim) — rate-limited
+                                                                                                                                - `POST /nlu/parse` (rule-based; optional Ollama refinement)
 - Data: Prisma + SQLite; models from earlier plan
 - Security: CORS allow-list for web, mobile dev, MCP; zod validation; basic rate limiting
 
@@ -80,11 +80,11 @@ Goal: expose backend capabilities as MCP tools so any MCP-capable client/agent c
 - Connection: stdio or HTTP server; simplest is stdio when run by the client, or HTTP on localhost `:5005`
 - Auth to API: include `x-api-key` header to call `apps/api`
 - Tools (example signatures):
-                - `search_doctors(specialty: string, near: { lat: number, lng: number }, radiusKm?: number)` → Doctor[]
-                - `check_availability(doctorId: string, startUtc: string, endUtc: string, slotMinutes: number)` → Slot[]
-                - `book_appointment(doctorId: string, startUtc: string, user: { name: string; email: string; phone?: string })` → { appointmentId, gcalEventId }
-                - `geocode(query: string)` → { lat, lng, address }
-                - `parse_message(message: string)` → { specialty?, location?, dateRange?, intent }
+                                                                                                                                - `search_doctors(specialty: string, near: { lat: number, lng: number }, radiusKm?: number)` → Doctor[]
+                                                                                                                                - `check_availability(doctorId: string, startUtc: string, endUtc: string, slotMinutes: number)` → Slot[]
+                                                                                                                                - `book_appointment(doctorId: string, startUtc: string, user: { name: string; email: string; phone?: string })` → { appointmentId, gcalEventId }
+                                                                                                                                - `geocode(query: string)` → { lat, lng, address }
+                                                                                                                                - `parse_message(message: string)` → { specialty?, location?, dateRange?, intent }
 
 MCP server skeleton:
 
@@ -112,8 +112,8 @@ server.start();
 ### 5) Mobile (`apps/mobile/`) — Expo (placeholder)
 
 - Free STT/TTS:
-                - TTS: `expo-speech`
-                - STT: `react-native-voice` (platform speech APIs), or defer STT to the server if needed
+                                                                                                                                - TTS: `expo-speech`
+                                                                                                                                - STT: `react-native-voice` (platform speech APIs), or defer STT to the server if needed
 - Shares `packages/shared` types; consumes the same API endpoints
 - Keep voice optional for MVP; start with forms mirroring web
 
@@ -126,12 +126,12 @@ server.start();
 
 - Ports: api 4000, web 3000, mcp 5005, expo dev auto
 - One command to run all:
-                - `pnpm dev` → runs `apps/api`, `apps/web`, `apps/mcp` in parallel; mobile started separately with `pnpm --filter @mcp/mobile start`
+                                                                                                                                - `pnpm dev` → runs `apps/api`, `apps/web`, `apps/mcp` in parallel; mobile started separately with `pnpm --filter @mcp/mobile start`
 - Example per-app scripts:
-                - `apps/api/package.json`: `dev`: `tsx src/index.ts`
-                - `apps/web/package.json`: `dev`: `next dev`
-                - `apps/mcp/package.json`: `dev`: `tsx src/index.ts`
-                - `apps/mobile/package.json`: `start`: `expo start`
+                                                                                                                                - `apps/api/package.json`: `dev`: `tsx src/index.ts`
+                                                                                                                                - `apps/web/package.json`: `dev`: `next dev`
+                                                                                                                                - `apps/mcp/package.json`: `dev`: `tsx src/index.ts`
+                                                                                                                                - `apps/mobile/package.json`: `start`: `expo start`
 
 ### 8) CORS and Networking
 

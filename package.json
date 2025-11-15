@@ -1,0 +1,26 @@
+{
+  "name": "voice-appointment-mvp",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "prisma:generate": "pnpm --filter @voice-appointment/api prisma generate",
+    "prisma:migrate": "pnpm --filter @voice-appointment/api prisma migrate dev",
+    "prisma:studio": "pnpm --filter @voice-appointment/api prisma studio",
+    "prisma:seed": "pnpm --filter @voice-appointment/api prisma db seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.3.0",
+    "@types/node": "^20.10.0"
+  }
+}
+

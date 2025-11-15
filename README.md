@@ -70,24 +70,39 @@ Create `.env` files in each app directory:
 
 #### `apps/api/.env`
 ```env
+# Server
+NODE_ENV=development
+PORT=4000
+
+# Database
+DATABASE_URL="file:./dev.db"
+
 # Google OAuth
 GOOGLE_CLIENT_ID=your_client_id
 GOOGLE_CLIENT_SECRET=your_client_secret
 OAUTH_REDIRECT_URI=http://localhost:4000/auth/google/callback
 
-# Database
-DATABASE_URL="file:./dev.db"
-
-# API Security
+# Security
 BACKEND_API_KEY=your_secret_api_key_here
+JWT_SECRET=your_jwt_secret_here
+ENCRYPTION_KEY=your_32_char_encryption_key_here
 
 # Optional: Local LLM
 OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama2
+
+# Rate Limiting
+NOMINATIM_RATE_LIMIT_PER_MINUTE=1
+GEOCODE_CACHE_TTL_SECONDS=3600
+
+# CORS
+ALLOWED_ORIGINS=http://localhost:3000,exp://*,http://localhost:5005
 ```
 
 #### `apps/web/.env.local`
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:4000
+NEXT_PUBLIC_ENABLE_VOICE=true
 ```
 
 #### `apps/mcp/.env`
@@ -103,7 +118,7 @@ API_KEY=your_secret_api_key_here
 pnpm prisma:migrate
 
 # Optional: Seed sample doctors
-pnpm --filter @mcp/api prisma db seed
+pnpm prisma:seed
 ```
 
 ### 5. Start Development Servers
@@ -113,14 +128,14 @@ pnpm --filter @mcp/api prisma db seed
 pnpm dev
 
 # Or start individually:
-pnpm --filter @mcp/api dev    # Backend on :4000
-pnpm --filter @mcp/web dev    # Frontend on :3000
-pnpm --filter @mcp/mcp dev    # MCP server on :5005
+pnpm --filter @voice-appointment/api dev    # Backend on :4000
+pnpm --filter @voice-appointment/web dev    # Frontend on :3000
+pnpm --filter @voice-appointment/mcp dev    # MCP server on :5005
 ```
 
 For mobile:
 ```bash
-pnpm --filter @mcp/mobile start
+pnpm --filter @voice-appointment/mobile start
 ```
 
 ## 📁 Project Structure
@@ -145,8 +160,6 @@ pnpm --filter @mcp/mobile start
 ├── packages/
 │   └── shared/           # Shared types & schemas
 │       └── src/
-├── prisma/
-│   └── schema.prisma     # Database schema
 ├── package.json
 ├── pnpm-workspace.yaml
 └── turbo.json
@@ -155,8 +168,9 @@ pnpm --filter @mcp/mobile start
 ## 🔌 API Endpoints
 
 ### Authentication
-- `GET /auth/google/initiate?doctorId=...` - Start Google OAuth flow
-- `GET /auth/google/callback` - OAuth callback handler
+- `GET /auth/google/initiate?doctorId=...` - Start Google OAuth flow with state token
+- `GET /auth/google/callback?code=...&state=...&doctorId=...` - OAuth callback handler
+- `GET /auth/google/refresh?doctorId=...` - Refresh expired access token
 
 ### Doctors
 - `GET /doctors/search?specialty=&lat=&lng=&radiusKm=10` - Find nearest doctors
@@ -186,15 +200,18 @@ pnpm --filter @mcp/mobile start
     }
   }
   ```
+- `GET /appointments/:id` - Get appointment details
+- `DELETE /appointments/:id` - Cancel appointment
 
 ### Utilities
-- `GET /geocode?q=address` - Geocode address to coordinates
+- `GET /geocode?q=address` - Geocode address to coordinates (rate limited: 1 req/sec)
 - `POST /nlu/parse` - Parse user message for intent/entities
   ```json
   {
     "message": "I need a cardiologist near downtown tomorrow"
   }
   ```
+- `GET /health` - Health check endpoint
 
 ## 🤖 MCP Tools
 
@@ -213,9 +230,9 @@ The MCP server exposes the following tools for AI agents:
 - **Speech Synthesis**: Uses `speechSynthesis` API
 - Real-time transcription and voice responses
 
-### Mobile (Future)
-- **TTS**: `expo-speech`
-- **STT**: `react-native-voice` (platform APIs)
+### Mobile
+- **TTS**: `expo-speech` (cross-platform)
+- **STT**: `@react-native-voice/voice` (Android supported, iOS placeholder)
 
 ## 🔒 Security
 
@@ -231,13 +248,13 @@ The MCP server exposes the following tools for AI agents:
 
 ```bash
 # Create migration
-pnpm --filter @mcp/api prisma migrate dev --name migration_name
+pnpm prisma:migrate
 
 # View database
-pnpm --filter @mcp/api prisma studio
+pnpm prisma:studio
 
 # Reset database (dev only)
-pnpm --filter @mcp/api prisma migrate reset
+pnpm --filter @voice-appointment/api prisma migrate reset
 ```
 
 ### Type Checking
