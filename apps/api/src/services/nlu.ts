@@ -37,15 +37,32 @@ const SPECIALTY_MAP: Record<string, string> = {
   therapist: "psychiatry",
 };
 
+// Basic input sanitization - remove potentially dangerous characters
+function sanitizeInput(input: string): string {
+  // Remove null bytes and control characters (except newlines and tabs)
+  return input
+    .replace(/\0/g, "")
+    .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, "")
+    .trim()
+    .slice(0, 1000); // Limit length to prevent DoS
+}
+
 export async function parseMessage(message: string): Promise<NLUResult> {
+  // Sanitize input
+  const sanitized = sanitizeInput(message);
+  
+  if (!sanitized) {
+    throw new Error("Message cannot be empty");
+  }
+
   // Check cache first
-  const cacheKey = `nlu:${message.toLowerCase().trim()}`;
+  const cacheKey = `nlu:${sanitized.toLowerCase()}`;
   const cached = nluCache.get<NLUResult>(cacheKey);
   if (cached) {
     return cached;
   }
 
-  const lowerMessage = message.toLowerCase();
+  const lowerMessage = sanitized.toLowerCase();
 
   // Extract specialty
   let specialty: string | undefined;
@@ -57,7 +74,7 @@ export async function parseMessage(message: string): Promise<NLUResult> {
   }
 
   // Extract date range using chrono-node
-  const parsedDates = chrono.parse(message);
+  const parsedDates = chrono.parse(sanitized);
   let dateRange: { start: string; end: string } | undefined;
   
   if (parsedDates.length > 0) {
@@ -78,7 +95,7 @@ export async function parseMessage(message: string): Promise<NLUResult> {
     const index = lowerMessage.indexOf(keyword);
     if (index !== -1) {
       // Extract text after location keyword
-      const afterKeyword = message.substring(index + keyword.length).trim();
+      const afterKeyword = sanitized.substring(index + keyword.length).trim();
       // Take first few words as location
       const words = afterKeyword.split(/\s+/).slice(0, 3);
       if (words.length > 0) {
@@ -113,7 +130,7 @@ export async function parseMessage(message: string): Promise<NLUResult> {
   // Optional: Try Ollama for ambiguous cases
   if (!specialty && !dateRange && process.env.OLLAMA_BASE_URL) {
     try {
-      const ollamaResult = await enhanceWithOllama(message);
+      const ollamaResult = await enhanceWithOllama(sanitized);
       if (ollamaResult) {
         return ollamaResult;
       }
@@ -133,9 +150,12 @@ async function enhanceWithOllama(message: string): Promise<NLUResult | null> {
     return null;
   }
 
+  // Escape message for JSON to prevent injection
+  const escapedMessage = message.replace(/"/g, '\\"').replace(/\n/g, "\\n").replace(/\r/g, "\\r");
+
   const prompt = `Extract medical appointment information from this message. Return JSON with: intent (book_appointment, search_doctors, check_availability, or modify_appointment), specialty (medical specialty name), location (location name or address), and dateRange (object with start and end as ISO8601 strings, or null if not mentioned).
 
-Message: "${message}"
+Message: "${escapedMessage}"
 
 Return only valid JSON, no other text.`;
 
@@ -157,7 +177,7 @@ Return only valid JSON, no other text.`;
       return null;
     }
 
-    const data = await response.json();
+    const data = await response.json() as { response?: string };
     const text = data.response || "";
     
     // Extract JSON from response (might have extra text)

@@ -1,11 +1,10 @@
 import { Router, Request, Response } from "express";
-import { PrismaClient } from "@prisma/client";
+import { prismaClient } from "../utils/prisma";
 import { BookingRequestSchema } from "@voice-appointment/shared";
 import { createCalendarEvent } from "../services/calendar";
 import { AppError } from "../utils/errors";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.post("/book", async (req: Request, res: Response) => {
   // Validate request body
@@ -17,7 +16,7 @@ router.post("/book", async (req: Request, res: Response) => {
   const { doctorId, startUtc, endUtc, user } = validation.data;
 
   // Verify doctor exists
-  const doctor = await prisma.doctor.findUnique({
+  const doctor = await prismaClient.doctor.findUnique({
     where: { id: doctorId },
   });
 
@@ -26,7 +25,7 @@ router.post("/book", async (req: Request, res: Response) => {
   }
 
   // Check if doctor has calendar credentials
-  const credential = await prisma.calendarCredential.findUnique({
+  const credential = await prismaClient.calendarCredential.findUnique({
     where: { doctorId },
   });
 
@@ -46,7 +45,7 @@ router.post("/book", async (req: Request, res: Response) => {
     );
 
     // Create appointment in database
-    const appointment = await prisma.appointment.create({
+    const appointment = await prismaClient.appointment.create({
       data: {
         doctorId,
         startUtc: new Date(startUtc),
@@ -73,7 +72,7 @@ router.post("/book", async (req: Request, res: Response) => {
 router.get("/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  const appointment = await prisma.appointment.findUnique({
+  const appointment = await prismaClient.appointment.findUnique({
     where: { id },
     include: { doctor: true },
   });
@@ -88,7 +87,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 router.delete("/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  const appointment = await prisma.appointment.findUnique({
+  const appointment = await prismaClient.appointment.findUnique({
     where: { id },
     include: { doctor: true },
   });
@@ -105,7 +104,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
       const { google } = await import("googleapis");
       const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
-      const credential = await prisma.calendarCredential.findUnique({
+      const credential = await prismaClient.calendarCredential.findUnique({
         where: { doctorId: appointment.doctorId },
       });
 
@@ -122,7 +121,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
   }
 
   // Update appointment status
-  await prisma.appointment.update({
+  await prismaClient.appointment.update({
     where: { id },
     data: { status: "cancelled" },
   });

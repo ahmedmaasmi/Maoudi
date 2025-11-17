@@ -94,32 +94,33 @@ export default function VoiceChat() {
       let response = "";
 
       if (nluResult.intent === "search_doctors") {
-        // Get user location (simplified - in production, use browser geolocation)
-        let lat = 40.7128; // Default to NYC
-        let lng = -74.0060;
+        // Get user location (try browser geolocation first, fallback to geocoding)
+        let lat: number | undefined;
+        let lng: number | undefined;
 
-        if (nluResult.entities.location) {
-          try {
-            const geocode = await apiClient.geocode(nluResult.entities.location);
-            lat = geocode.lat;
-            lng = geocode.lng;
-          } catch (error) {
-            response = "I couldn't find that location. Using default location.";
-          }
-        } else {
-          // Try to get user's current location
-          try {
-            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-              navigator.geolocation.getCurrentPosition(resolve, reject);
-            });
-            lat = position.coords.latitude;
-            lng = position.coords.longitude;
-          } catch (error) {
-            response = "I'll search using a default location. ";
+        // Try to get user's current location first
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+          });
+          lat = position.coords.latitude;
+          lng = position.coords.longitude;
+        } catch (error) {
+          // If geolocation fails and location is provided, try geocoding
+          if (nluResult.entities.location) {
+            try {
+              const geocode = await apiClient.geocode(nluResult.entities.location);
+              lat = geocode.lat;
+              lng = geocode.lng;
+            } catch (geocodeError) {
+              response = "I couldn't determine your location. Please enable location access or provide a specific location.";
+            }
+          } else {
+            response = "I need your location to search for doctors. Please enable location access or specify a location.";
           }
         }
 
-        if (nluResult.entities.specialty) {
+        if (nluResult.entities.specialty && lat !== undefined && lng !== undefined) {
           const doctors = await apiClient.searchDoctors(
             nluResult.entities.specialty,
             lat,

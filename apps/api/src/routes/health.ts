@@ -1,14 +1,13 @@
 import { Router, Request, Response } from "express";
-import { PrismaClient } from "@prisma/client";
+import { prismaClient } from "../utils/prisma";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.get("/", async (req: Request, res: Response) => {
   let databaseStatus = "disconnected";
 
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await prismaClient.$queryRaw`SELECT 1`;
     databaseStatus = "connected";
   } catch (error) {
     console.error("Database health check failed:", error);

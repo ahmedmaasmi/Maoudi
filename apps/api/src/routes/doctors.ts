@@ -1,12 +1,11 @@
 import { Router, Request, Response } from "express";
-import { PrismaClient } from "@prisma/client";
+import { prismaClient } from "../utils/prisma";
 import { DoctorSearchQuerySchema } from "@voice-appointment/shared";
 import { doctorSearchCache } from "../utils/cache";
 import { getDistance } from "geolib";
 import { AppError } from "../utils/errors";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.get("/search", async (req: Request, res: Response) => {
   // Validate query parameters
@@ -17,6 +16,11 @@ router.get("/search", async (req: Request, res: Response) => {
 
   const { specialty, lat, lng, radiusKm } = validation.data;
 
+  // Validate specialty is not empty after trimming
+  if (!specialty || !specialty.trim()) {
+    throw new AppError("VALIDATION_ERROR", "Specialty parameter cannot be empty", 400);
+  }
+
   // Check cache
   const cacheKey = `doctors:${specialty}:${lat}:${lng}:${radiusKm}`;
   const cached = doctorSearchCache.get(cacheKey);
@@ -24,27 +28,26 @@ router.get("/search", async (req: Request, res: Response) => {
     return res.json({ doctors: cached });
   }
 
-  // Get all doctors with matching specialty
-  const doctors = await prisma.doctor.findMany({
+  // Get all doctors with matching specialty (SQLite doesn't support case-insensitive mode)
+  const doctors = await prismaClient.doctor.findMany({
     where: {
       specialty: {
         contains: specialty,
-        mode: "insensitive",
       },
     },
   });
 
   // Filter by distance
   const nearbyDoctors = doctors
-    .map((doctor) => ({
+    .map((doctor: { id: string; name: string; specialty: string; address: string; latitude: number; longitude: number; phone?: string | null; email?: string | null }) => ({
       ...doctor,
       distance: getDistance(
         { latitude: lat, longitude: lng },
         { latitude: doctor.latitude, longitude: doctor.longitude }
       ) / 1000, // Convert to km
     }))
-    .filter((doctor) => doctor.distance <= radiusKm)
-    .sort((a, b) => a.distance - b.distance);
+    .filter((doctor: { distance: number }) => doctor.distance <= radiusKm)
+    .sort((a: { distance: number }, b: { distance: number }) => a.distance - b.distance);
 
   // Cache the result
   doctorSearchCache.set(cacheKey, nearbyDoctors);

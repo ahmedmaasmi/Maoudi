@@ -1,17 +1,16 @@
 import { google } from "googleapis";
 import { OAuth2Client } from "google-auth-library";
-import { PrismaClient } from "@prisma/client";
+import { prismaClient } from "../utils/prisma";
 import { decrypt } from "../utils/encryption";
-
-const prisma = new PrismaClient();
+import { AppError } from "../utils/errors";
 
 export async function getCalendarClient(doctorId: string): Promise<OAuth2Client> {
-  const credential = await prisma.calendarCredential.findUnique({
+  const credential = await prismaClient.calendarCredential.findUnique({
     where: { doctorId },
   });
 
   if (!credential) {
-    throw new Error(`No calendar credentials found for doctor ${doctorId}`);
+    throw new AppError("NO_CREDENTIALS", `No calendar credentials found for doctor ${doctorId}`, 404);
   }
 
   const oauth2Client = new OAuth2Client(
@@ -30,7 +29,7 @@ export async function getCalendarClient(doctorId: string): Promise<OAuth2Client>
   if (!credential.accessToken || !credential.tokenExpiry || credential.tokenExpiry < new Date()) {
     const { credentials } = await oauth2Client.refreshAccessToken();
     
-    await prisma.calendarCredential.update({
+    await prismaClient.calendarCredential.update({
       where: { doctorId },
       data: {
         accessToken: credentials.access_token || null,
@@ -58,12 +57,12 @@ export async function checkAvailability(
   const oauth2Client = await getCalendarClient(doctorId);
   const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
-  const credential = await prisma.calendarCredential.findUnique({
+  const credential = await prismaClient.calendarCredential.findUnique({
     where: { doctorId },
   });
 
   if (!credential) {
-    throw new Error(`No calendar credentials found for doctor ${doctorId}`);
+    throw new AppError("NO_CREDENTIALS", `No calendar credentials found for doctor ${doctorId}`, 404);
   }
 
   // Get freebusy information
@@ -118,15 +117,15 @@ export async function createCalendarEvent(
   const oauth2Client = await getCalendarClient(doctorId);
   const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
-  const credential = await prisma.calendarCredential.findUnique({
+  const credential = await prismaClient.calendarCredential.findUnique({
     where: { doctorId },
   });
 
   if (!credential) {
-    throw new Error(`No calendar credentials found for doctor ${doctorId}`);
+    throw new AppError("NO_CREDENTIALS", `No calendar credentials found for doctor ${doctorId}`, 404);
   }
 
-  const doctor = await prisma.doctor.findUnique({
+  const doctor = await prismaClient.doctor.findUnique({
     where: { id: doctorId },
   });
 

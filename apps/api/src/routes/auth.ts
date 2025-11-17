@@ -1,25 +1,26 @@
 import { Router, Request, Response } from "express";
 import { google } from "googleapis";
-import { PrismaClient } from "@prisma/client";
+import { prismaClient } from "../utils/prisma";
 import { encrypt } from "../utils/encryption";
 import { AppError } from "../utils/errors";
 import crypto from "crypto";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Store OAuth states temporarily (in production, use Redis)
 const oauthStates = new Map<string, { doctorId: string; expiresAt: Date }>();
 
-// Clean up expired states every 10 minutes
+// Clean up expired states every 1 minute (more aggressive cleanup to prevent memory leaks)
 setInterval(() => {
   const now = new Date();
+  const statesToDelete: string[] = [];
   for (const [state, data] of oauthStates.entries()) {
     if (data.expiresAt < now) {
-      oauthStates.delete(state);
+      statesToDelete.push(state);
     }
   }
-}, 10 * 60 * 1000);
+  statesToDelete.forEach((state) => oauthStates.delete(state));
+}, 60 * 1000); // 1 minute instead of 10 minutes
 
 router.get("/google/initiate", async (req: Request, res: Response) => {
   const doctorId = req.query.doctorId as string;
@@ -29,7 +30,7 @@ router.get("/google/initiate", async (req: Request, res: Response) => {
   }
 
   // Verify doctor exists
-  const doctor = await prisma.doctor.findUnique({
+  const doctor = await prismaClient.doctor.findUnique({
     where: { id: doctorId },
   });
 
@@ -101,7 +102,7 @@ router.get("/google/callback", async (req: Request, res: Response) => {
     // Encrypt and store refresh token
     const encryptedToken = encrypt(tokens.refresh_token);
 
-    await prisma.calendarCredential.upsert({
+    await prismaClient.calendarCredential.upsert({
       where: { doctorId: doctorId as string },
       create: {
         doctorId: doctorId as string,

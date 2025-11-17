@@ -238,7 +238,8 @@ export default function BookingFlow() {
                   key={index}
                   onClick={() => handleSelectSlot(slot)}
                   className={`px-4 py-2 border rounded-lg ${
-                    state.selectedSlot?.start === slot.start
+                    state.selectedSlot && slot.start && 
+                    new Date(state.selectedSlot.start).getTime() === new Date(slot.start).getTime()
                       ? "bg-blue-500 text-white border-blue-500"
                       : "border-gray-300 hover:bg-gray-50"
                   }`}

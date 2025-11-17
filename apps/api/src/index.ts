@@ -2,9 +2,11 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import dotenv from "dotenv";
-import { PrismaClient } from "@prisma/client";
+import { prismaClient } from "./utils/prisma";
 import { errorHandler } from "./middleware/errorHandler";
+import { apiKeyAuth } from "./middleware/auth";
 import { globalRateLimit, geocodeRateLimit, availabilityRateLimit, bookingRateLimit } from "./middleware/rateLimit";
+import { validateEnv } from "./utils/env";
 
 // Routes
 import authRoutes from "./routes/auth";
@@ -17,12 +19,16 @@ import healthRoutes from "./routes/health";
 
 dotenv.config();
 
+// Validate environment variables at startup
+try {
+  validateEnv();
+} catch (error) {
+  console.error("Environment validation failed:", error);
+  process.exit(1);
+}
+
 const app = express();
 const PORT = process.env.PORT || 4000;
-const prisma = new PrismaClient();
-
-// Enable WAL mode for SQLite concurrency
-prisma.$executeRaw`PRAGMA journal_mode=WAL;`.catch(console.error);
 
 // Middleware
 app.use(helmet());
@@ -34,7 +40,23 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:3000").
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.some((allowed) => origin.match(new RegExp(allowed.replace("*", ".*"))))) {
+      if (!origin) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        callback(null, true);
+        return;
+      }
+      
+      // Check if origin matches any allowed origin pattern
+      const isAllowed = allowedOrigins.some((allowed) => {
+        // Escape special regex characters except * and .
+        const escaped = allowed.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+        // Replace * with .* for wildcard matching
+        const pattern = escaped.replace(/\*/g, ".*");
+        const regex = new RegExp(`^${pattern}$`);
+        return regex.test(origin);
+      });
+      
+      if (isAllowed) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));
@@ -48,13 +70,16 @@ app.use(
 app.use(globalRateLimit);
 
 // Routes
+// Public routes (no API key required)
 app.use("/health", healthRoutes);
 app.use("/auth", authRoutes);
 app.use("/doctors", doctorsRoutes);
-app.use("/availability", availabilityRateLimit, availabilityRoutes);
-app.use("/appointments", bookingRateLimit, appointmentsRoutes);
-app.use("/geocode", geocodeRateLimit, geocodeRoutes);
-app.use("/nlu", nluRoutes);
+
+// Protected routes (require API key authentication)
+app.use("/availability", apiKeyAuth, availabilityRateLimit, availabilityRoutes);
+app.use("/appointments", apiKeyAuth, bookingRateLimit, appointmentsRoutes);
+app.use("/geocode", apiKeyAuth, geocodeRateLimit, geocodeRoutes);
+app.use("/nlu", apiKeyAuth, nluRoutes);
 
 // Error handling (must be last)
 app.use(errorHandler);
@@ -66,12 +91,12 @@ app.listen(PORT, () => {
 
 // Graceful shutdown
 process.on("SIGTERM", async () => {
-  await prisma.$disconnect();
+  await prismaClient.$disconnect();
   process.exit(0);
 });
 
 process.on("SIGINT", async () => {
-  await prisma.$disconnect();
+  await prismaClient.$disconnect();
   process.exit(0);
 });
 
