@@ -1,0 +1,67 @@
+=== QUICK TEST PROMPTS ===
+Copy and paste these prompts to test the system:
+
+1. COMPLETE INFO - Should auto-book:
+Hello, I'm Ahmed and my heart is hurting me. My name is Ahmed and my email is ahmedmaasmi.contact@gmail.com and I want an appointment tomorrow morning around 9am.
+
+2. COMPLETE INFO - Alternative:
+Hi, my name is Sarah and I need to see a cardiologist urgently. My email is sarah.johnson@test.com and I'm available tomorrow at 2pm.
+
+3. PROGRESSIVE - Turn 1:
+I need to see a cardiologist for chest pain.
+
+4. PROGRESSIVE - Turn 2:
+My name is Ahmed and my email is ahmed@test.com
+
+5. PROGRESSIVE - Turn 3:
+Tomorrow morning at 9am would be perfect.
+
+6. WITH LOCATION:
+I need a cardiologist in Algiers. My name is Ahmed, email is ahmed@test.com, and I want an appointment tomorrow at 9am.
+
+7. DERMATOLOGY:
+Hi, I'm Sarah and I have a persistent skin rash. My email is sarah.smith@test.com. Can I see a dermatologist tomorrow at 2pm?
+
+8. DENTIST:
+I need a dentist appointment. My name is Maria, email is maria.garcia@test.com, and I want to see someone tomorrow afternoon around 3pm.
+
+9. PEDIATRICS:
+I need a pediatrician for my child. My name is Leila, email is leila@test.com, and I want an appointment tomorrow at 10am.
+
+10. URGENT:
+URGENT: I need a cardiologist immediately. My heart is hurting. My name is Ahmed, email is ahmed@test.com, tomorrow at 9am.
+
+11. WITH PHONE:
+I need a cardiologist. My name is Ahmed, email is ahmed@test.com, phone is +213-550-123-456, and I want tomorrow at 9am.
+
+12. WITH SYMPTOMS:
+I have chest pain and need a cardiologist. My name is Ahmed, email is ahmed@test.com, tomorrow at 9am.
+
+13. MINIMAL INFO:
+I need a cardiologist appointment. Email: ahmed@test.com
+
+14. NAME IN EMAIL:
+I need a cardiologist. My email is ahmed.maasmi@test.com and I want tomorrow at 9am.
+
+15. ORAN LOCATION:
+Looking for a cardiologist near Oran. My name is Fatima, email is fatima@test.com, tomorrow at 2pm please.
+
+16. LOCATION PREFERENCE - Turn 1:
+I need a cardiologist. My name is Ahmed, email is ahmed@test.com, tomorrow at 9am.
+
+17. LOCATION PREFERENCE - Turn 2 (Use Current):
+Use my location
+
+18. LOCATION PREFERENCE - Turn 2 (Specify):
+Algiers
+
+19. CURRENT LOCATION DIRECT:
+I need a cardiologist near my current location. My name is Ahmed, email is ahmed@test.com, tomorrow at 9am.
+
+=== TESTING TIPS ===
+- Check API logs to see the complete flow
+- Verify name, email, and time extraction
+- Confirm doctor selection from database
+- Check availability calculation
+- Verify appointment creation
+

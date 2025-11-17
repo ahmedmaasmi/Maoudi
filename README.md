@@ -2,6 +2,123 @@
 
 A full-stack appointment booking application with voice and text interfaces, powered by Next.js, Express.js, and Model Context Protocol (MCP). Users can book appointments with doctors by speaking or typing their requirements, and the system automatically checks Google Calendar availability and schedules appointments.
 
+## 🎯 Use Cases
+
+### Primary Use Cases
+
+1. **Voice-Based Appointment Booking**
+   - Patients can book medical appointments using natural voice commands
+   - Hands-free booking for users with accessibility needs or busy schedules
+   - Conversational interface that understands natural language requests
+
+2. **Location-Based Doctor Search**
+   - Find nearby doctors based on specialty and geographic proximity
+   - Automatic geocoding of addresses and location queries
+   - Distance-based ranking of available healthcare providers
+
+3. **Real-Time Availability Checking**
+   - Integration with Google Calendar to check doctor availability in real-time
+   - Automatic slot detection and suggestion
+   - Prevents double-booking and scheduling conflicts
+
+4. **Multi-Modal Booking Interface**
+   - Voice input for hands-free operation
+   - Text input for users who prefer typing
+   - Form-based booking for structured data entry
+
+5. **AI-Powered Natural Language Understanding**
+   - Parses complex appointment requests from natural language
+   - Extracts entities: specialty, location, date/time, urgency
+   - Handles conversational context and follow-up questions
+
+6. **Calendar Integration**
+   - Automatic creation of Google Calendar events upon booking
+   - OAuth-based secure access to doctor calendars
+   - Synchronized scheduling across platforms
+
+## 📖 User Scenarios
+
+### Scenario 1: Voice Booking for Urgent Care
+
+**User**: Sarah, a busy professional, needs to see a dermatologist urgently for a skin rash.
+
+**Interaction Flow**:
+
+1. Sarah opens the web app and clicks "Voice Chat"
+2. She speaks: *"I need to see a dermatologist near my office in downtown tomorrow morning"*
+3. The system:
+   - Parses the request: specialty (dermatology), location (downtown), time (tomorrow morning)
+   - Geocodes "downtown" to coordinates
+   - Searches for nearby dermatologists within a 10km radius
+   - Checks each doctor's Google Calendar for available morning slots
+4. System responds: *"I found 3 dermatologists near downtown. Dr. Smith has availability tomorrow at 9:00 AM and 11:00 AM. Would you like to book one of these?"*
+5. Sarah: *"Yes, book the 9 AM appointment"*
+6. System: *"Please provide your name and email"*
+7. Sarah provides her details, and the appointment is booked
+8. System confirms: *"Your appointment with Dr. Smith is confirmed for tomorrow at 9:00 AM. A calendar invite has been sent to your email."*
+
+### Scenario 2: Text-Based Booking for Routine Checkup
+
+**User**: John wants to schedule a routine dental checkup for next week.
+
+**Interaction Flow**:
+
+1. John opens the app and uses the text input option
+2. He types: *"I need a dentist appointment next week, preferably in the afternoon"*
+3. The system:
+   - Extracts: specialty (dentistry), time preference (afternoon), date range (next week)
+   - Asks for location: *"Where would you like to find a dentist?"*
+4. John: *"Near 123 Main Street"*
+5. System geocodes the address and finds nearby dentists
+6. System checks availability and shows: *"I found 2 dentists near your location. Dr. Johnson has slots on Tuesday and Thursday afternoons. Which day works for you?"*
+7. John selects Tuesday, and the system books the appointment
+8. Confirmation with calendar link is provided
+
+### Scenario 3: Mobile Voice Booking While Commuting
+
+**User**: Maria is commuting and needs to book a pediatrician appointment for her child.
+
+**Interaction Flow**:
+
+1. Maria opens the mobile app while on the train
+2. Uses voice input: *"Book a pediatrician appointment for my daughter next Friday"*
+3. System asks for location (uses GPS if permitted)
+4. System finds pediatricians and checks availability
+5. System: *"I found Dr. Williams available next Friday at 2:00 PM and 4:00 PM"*
+6. Maria: *"2 PM works"*
+7. System books the appointment and sends confirmation via email
+8. Calendar event is automatically added to Maria's Google Calendar
+
+### Scenario 4: Complex Multi-Step Booking
+
+**User**: David needs to find a cardiologist for a follow-up appointment with specific requirements.
+
+**Interaction Flow**:
+
+1. David: *"I need to see a cardiologist"*
+2. System: *"I can help you find a cardiologist. What location are you looking for?"*
+3. David: *"Near the hospital district"*
+4. System finds cardiologists and checks availability
+5. System: *"I found 2 cardiologists. Dr. Lee has availability this week, and Dr. Chen has slots next week. Which timeframe works for you?"*
+6. David: *"This week, but only in the mornings"*
+7. System filters and shows: *"Dr. Lee has Tuesday and Wednesday mornings available. Which day?"*
+8. David selects Tuesday, provides his information, and the appointment is confirmed
+
+### Scenario 5: Accessibility-Focused Voice Booking
+
+**User**: Robert has limited mobility and prefers voice interaction.
+
+**Interaction Flow**:
+
+1. Robert uses voice commands exclusively
+2. System provides audio feedback for all interactions
+3. Robert: *"Find me a general practitioner"*
+4. System: *"I found several general practitioners. Would you like me to search by location or show you all available options?"*
+5. Robert: *"Show me all options"*
+6. System reads out the list of doctors with their availability
+7. Robert selects one using voice: *"Book with the first doctor for the earliest available time"*
+8. System confirms the booking with audio confirmation
+
 ## 🏗️ Architecture
 
 This is a monorepo containing:

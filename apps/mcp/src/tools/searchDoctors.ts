@@ -35,7 +35,7 @@ export async function searchDoctors(args: {
   near: { lat: number; lng: number };
   radiusKm?: number;
 }) {
-  const client = createApiClient();
+  const client = createApiClient({ requireApiKey: false });
   const response = await client.get("/doctors/search", {
     params: {
       specialty: args.specialty,

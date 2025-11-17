@@ -9,6 +9,7 @@ import { doctorSearchCache } from "../utils/cache";
 import { getDistance } from "geolib";
 import { AppError } from "../utils/errors";
 import { apiKeyAuth } from "../middleware/auth";
+import { normalizeSpecialty } from "../utils/specialty";
 
 const router = Router();
 
@@ -44,13 +45,15 @@ router.get("/search", async (req: Request, res: Response) => {
 
   const { specialty, lat, lng, radiusKm } = validation.data;
 
-  // Validate specialty is not empty after trimming
-  if (!specialty || !specialty.trim()) {
+  const trimmedSpecialty = specialty?.trim() ?? "";
+  if (!trimmedSpecialty) {
     throw new AppError("VALIDATION_ERROR", "Specialty parameter cannot be empty", 400);
   }
 
+  const normalizedSpecialty = normalizeSpecialty(trimmedSpecialty);
+
   // Check cache
-  const cacheKey = `doctors:${specialty}:${lat}:${lng}:${radiusKm}`;
+  const cacheKey = `doctors:${normalizedSpecialty}:${lat}:${lng}:${radiusKm}`;
   const cached = doctorSearchCache.get(cacheKey);
   if (cached) {
     return res.json({ doctors: cached });
@@ -60,7 +63,7 @@ router.get("/search", async (req: Request, res: Response) => {
   const doctors = await prismaClient.doctor.findMany({
     where: {
       specialty: {
-        contains: specialty,
+        contains: normalizedSpecialty,
       },
     },
   });

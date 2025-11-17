@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { prismaClient } from "../utils/prisma";
 import { BookingRequestSchema, ScheduleAppointmentRequestSchema } from "@voice-appointment/shared";
-import { createCalendarEvent } from "../services/calendar";
+import { createCalendarEvent } from "../services/localCalendar";
 import { AppError } from "../utils/errors";
 
 const router = Router();
@@ -31,13 +31,7 @@ async function createAppointmentBooking(params: {
     throw new AppError("DOCTOR_NOT_FOUND", "Doctor not found", 404);
   }
 
-  const credential = await prismaClient.calendarCredential.findUnique({
-    where: { doctorId },
-  });
-
-  if (!credential) {
-    throw new AppError("NO_CREDENTIALS", "Doctor has not connected their calendar", 400);
-  }
+  // No need to check for calendar credentials - we use local calendar
 
   const patient = await prismaClient.patient.upsert({
     where: { email: user.email },

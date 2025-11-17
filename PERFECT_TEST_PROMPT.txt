@@ -1,0 +1,94 @@
+=== THE PERFECT TEST PROMPT ===
+
+This prompt tests the specialty normalization fix and includes all information needed for auto-booking:
+
+"I need a cardiologist. My name is Ahmed, email is ahmed@test.com, tomorrow at 9am in Algiers."
+
+
+=== WHY THIS PROMPT IS PERFECT ===
+
+✅ Tests Specialty Normalization:
+   - Uses "cardiologist" (synonym) which should normalize to "cardiology"
+   - Verifies the fix we just implemented works correctly
+
+✅ Complete Information for Auto-Booking:
+   - Name: Ahmed
+   - Email: ahmed@test.com
+   - Specialty: cardiologist (will normalize to cardiology)
+   - Time: tomorrow at 9am
+   - Location: Algiers (will geocode to coordinates)
+
+✅ Natural Language:
+   - Sounds like a real user request
+   - Not overly formal or robotic
+   - Includes all key details in one sentence
+
+✅ Tests Key Features:
+   - Specialty synonym handling (cardiologist → cardiology)
+   - Location geocoding (Algiers → coordinates)
+   - Time parsing (tomorrow at 9am)
+   - Doctor search with location filtering
+   - Auto-booking flow - WILL AUTOMATICALLY BOOK with the closest doctor!
+
+
+=== EXPECTED BEHAVIOR ===
+
+1. System extracts:
+   - Name: "Ahmed"
+   - Email: "ahmed@test.com"
+   - Specialty: "cardiologist" → normalizes to "cardiology"
+   - Time: "tomorrow at 9am"
+   - Location: "Algiers" → geocodes to coordinates
+
+2. System searches for:
+   - Specialty: "cardiology" (normalized)
+   - Location: Algiers coordinates
+   - Should find Dr. Ahmed Maasmi or Dr. Amel Bensalah in Algiers
+
+3. System WILL AUTOMATICALLY:
+   - Find available cardiologists in Algiers (within 50km radius)
+   - Select the closest doctor to Algiers
+   - Check availability for tomorrow at 9am
+   - Auto-book the appointment immediately
+   - Return confirmation with doctor name and appointment details
+   - NO need for user confirmation - it books directly!
+
+
+=== VARIATIONS TO TEST ===
+
+1. Alternative Specialty Synonyms:
+   "I need a heart doctor. My name is Ahmed, email is ahmed@test.com, tomorrow at 9am in Algiers."
+   
+2. Different Location:
+   "I need a cardiologist. My name is Ahmed, email is ahmed@test.com, tomorrow at 9am in Oran."
+   
+3. Without Location (uses current):
+   "I need a cardiologist. My name is Ahmed, email is ahmed@test.com, tomorrow at 9am."
+   
+4. Different Specialty:
+   "I need a dermatologist. My name is Sarah, email is sarah@test.com, tomorrow at 2pm in Algiers."
+
+
+=== WHAT TO CHECK IN LOGS ===
+
+✓ [EXTRACT] ✓ Extracted email: ahmed@test.com
+✓ [EXTRACT] ✓ Extracted name: Ahmed
+✓ [STEP 2] NLU Result should show intent: 'book_appointment'
+✓ [STEP 3] Has email: ✓
+✓ [STEP 3] Has time: ✓
+✓ [STEP 3] Has specialty: ✓ (after normalization)
+✓ 🔧 TOOL: Normalized specialty: "cardiologist" -> "cardiology"
+✓ 🔧 TOOL: Found X doctors matching "cardiology"
+✓ 🔧 TOOL: Found X doctors within radius
+
+
+=== SUCCESS CRITERIA ===
+
+✅ Specialty "cardiologist" correctly normalizes to "cardiology"
+✅ At least one cardiologist found in Algiers area
+✅ System automatically books appointment with closest doctor
+✅ Response includes doctor name and appointment confirmation
+✅ No "0 doctors matching" error
+✅ Appointment is actually created in database
+✅ Response message confirms booking: "Great! I've booked an appointment with [Doctor Name]..."
+
