@@ -15,9 +15,14 @@ import availabilityRoutes from "./routes/availability";
 import appointmentsRoutes from "./routes/appointments";
 import geocodeRoutes from "./routes/geocode";
 import nluRoutes from "./routes/nlu";
+import chatRoutes from "./routes/chat";
 import healthRoutes from "./routes/health";
+import patientsRoutes from "./routes/patients";
 
-dotenv.config();
+// Load environment variables from root .env file
+import { resolve } from "path";
+dotenv.config({ path: resolve(__dirname, "../../../.env") });
+dotenv.config(); // Also load from apps/api/.env if it exists
 
 // Validate environment variables at startup
 try {
@@ -74,12 +79,14 @@ app.use(globalRateLimit);
 app.use("/health", healthRoutes);
 app.use("/auth", authRoutes);
 app.use("/doctors", doctorsRoutes);
+app.use("/chat", globalRateLimit, chatRoutes); // Public chat endpoint for end users
 
 // Protected routes (require API key authentication)
 app.use("/availability", apiKeyAuth, availabilityRateLimit, availabilityRoutes);
 app.use("/appointments", apiKeyAuth, bookingRateLimit, appointmentsRoutes);
 app.use("/geocode", apiKeyAuth, geocodeRateLimit, geocodeRoutes);
 app.use("/nlu", apiKeyAuth, nluRoutes);
+app.use("/patients", apiKeyAuth, patientsRoutes);
 
 // Error handling (must be last)
 app.use(errorHandler);

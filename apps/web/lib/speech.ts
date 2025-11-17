@@ -1,6 +1,6 @@
 "use client";
 
-export interface SpeechRecognition extends EventTarget {
+export interface BrowserSpeechRecognition extends EventTarget {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
@@ -10,6 +10,7 @@ export interface SpeechRecognition extends EventTarget {
   onresult: (event: SpeechRecognitionEvent) => void;
   onerror: (event: SpeechRecognitionErrorEvent) => void;
   onend: () => void;
+  onstart: () => void;
 }
 
 export interface SpeechRecognitionEvent {
@@ -25,15 +26,15 @@ export interface SpeechRecognitionErrorEvent {
 declare global {
   interface Window {
     SpeechRecognition: {
-      new (): SpeechRecognition;
+      new (): BrowserSpeechRecognition;
     };
     webkitSpeechRecognition: {
-      new (): SpeechRecognition;
+      new (): BrowserSpeechRecognition;
     };
   }
 }
 
-export function getSpeechRecognition(): SpeechRecognition | null {
+export function getSpeechRecognition(): BrowserSpeechRecognition | null {
   if (typeof window === "undefined") {
     return null;
   }

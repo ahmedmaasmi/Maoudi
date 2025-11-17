@@ -12,11 +12,27 @@ import {
   bookAppointmentTool,
   bookAppointment,
 } from "./tools/bookAppointment.js";
+import {
+  scheduleAppointmentTool,
+  scheduleAppointment,
+} from "./tools/scheduleAppointment.js";
 import { geocodeTool, geocode } from "./tools/geocode.js";
 import {
   parseMessageTool,
   parseMessage,
 } from "./tools/parseMessage.js";
+import {
+  getDoctorScheduleTool,
+  getDoctorSchedule,
+} from "./tools/getDoctorSchedule.js";
+import {
+  getAppointmentStatsTool,
+  getAppointmentStats,
+} from "./tools/getAppointmentStats.js";
+import {
+  searchPatientsBySymptomTool,
+  searchPatientsBySymptom,
+} from "./tools/searchPatientsBySymptom.js";
 
 const server = new Server(
   {
@@ -37,6 +53,10 @@ server.setRequestHandler("tools/list", async () => {
       searchDoctorsTool,
       checkAvailabilityTool,
       bookAppointmentTool,
+      scheduleAppointmentTool,
+      getDoctorScheduleTool,
+      getAppointmentStatsTool,
+      searchPatientsBySymptomTool,
       geocodeTool,
       parseMessageTool,
     ],
@@ -58,6 +78,18 @@ server.setRequestHandler("tools/call", async (request) => {
         break;
       case "book_appointment":
         result = await bookAppointment(args as any);
+        break;
+      case "schedule_appointment":
+        result = await scheduleAppointment(args as any);
+        break;
+      case "get_doctor_schedule":
+        result = await getDoctorSchedule(args as any);
+        break;
+      case "get_appointment_stats":
+        result = await getAppointmentStats(args as any);
+        break;
+      case "search_patients_by_symptom":
+        result = await searchPatientsBySymptom(args as any);
         break;
       case "geocode":
         result = await geocode(args as any);

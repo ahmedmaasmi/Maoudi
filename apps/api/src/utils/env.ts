@@ -14,8 +14,7 @@ export function validateEnv() {
     "GOOGLE_CLIENT_SECRET",
     "OAUTH_REDIRECT_URI",
     "JWT_SECRET",
-    "OLLAMA_BASE_URL",
-    "OLLAMA_MODEL",
+    "OPENROUTER_API_KEY",
   ];
 
   const missing: string[] = [];

@@ -87,9 +87,9 @@ BACKEND_API_KEY=your_secret_api_key_here
 JWT_SECRET=your_jwt_secret_here
 ENCRYPTION_KEY=your_32_char_encryption_key_here
 
-# Optional: Local LLM
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama2
+# Optional: AI/LLM (OpenRouter API)
+# Get your API key from: https://openrouter.ai/keys
+OPENROUTER_API_KEY=your_openrouter_api_key_here
 
 # Rate Limiting
 NOMINATIM_RATE_LIMIT_PER_MINUTE=1

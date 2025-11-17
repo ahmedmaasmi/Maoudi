@@ -8,27 +8,27 @@ export default function Home() {
   const [mode, setMode] = useState<"voice" | "form">("voice");
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow-sm border-b">
+    <main className="min-h-screen bg-black">
+      <div className="bg-gray-900 border-b border-gray-800">
         <div className="max-w-4xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold mb-2">Voice Appointment Booking</h1>
+          <h1 className="text-2xl font-bold mb-2 text-white">Voice Appointment Booking</h1>
           <div className="flex gap-2">
             <button
               onClick={() => setMode("voice")}
-              className={`px-4 py-2 rounded-lg ${
+              className={`px-4 py-2 rounded-lg transition-colors ${
                 mode === "voice"
-                  ? "bg-blue-500 text-white"
-                  : "bg-gray-200 text-gray-700"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-800 text-gray-300 hover:bg-gray-700"
               }`}
             >
               Voice Chat
             </button>
             <button
               onClick={() => setMode("form")}
-              className={`px-4 py-2 rounded-lg ${
+              className={`px-4 py-2 rounded-lg transition-colors ${
                 mode === "form"
-                  ? "bg-blue-500 text-white"
-                  : "bg-gray-200 text-gray-700"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-800 text-gray-300 hover:bg-gray-700"
               }`}
             >
               Form Booking

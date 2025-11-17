@@ -41,22 +41,51 @@ model CalendarCredential {
   @@index([doctorId])
 }
 
+model Patient {
+  id          String            @id @default(cuid())
+  name        String
+  email       String            @unique
+  phone       String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  appointments Appointment[]
+  symptoms    PatientSymptom[]
+}
+
 model Appointment {
   id            String   @id @default(cuid())
   doctorId      String
+  patientId     String?
   startUtc      DateTime
   endUtc        DateTime
   userName      String
   userEmail     String
   userPhone     String?
+  reason        String?
+  notes         String?
+  symptoms      String?
   gcalEventId   String?  // Google Calendar event ID
   status        String   @default("confirmed") // confirmed, cancelled, completed
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   doctor        Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient       Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
 
   @@index([doctorId, startUtc])
   @@index([userEmail])
+  @@index([patientId])
+}
+
+model PatientSymptom {
+  id        String   @id @default(cuid())
+  patientId String
+  symptom   String
+  notedAt   DateTime @default(now())
+
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@unique([patientId, symptom])
+  @@index([symptom])
 }
 

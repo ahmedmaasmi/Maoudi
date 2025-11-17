@@ -8,7 +8,8 @@ export function getPrismaClient(): PrismaClient {
     prisma = new PrismaClient();
     
     // Enable WAL mode for SQLite concurrency
-    prisma.$executeRaw`PRAGMA journal_mode=WAL;`.catch(console.error);
+    // Use queryRawUnsafe since PRAGMA can return results in SQLite
+    prisma.$queryRawUnsafe(`PRAGMA journal_mode=WAL;`).catch(console.error);
   }
   
   return prisma;

@@ -127,26 +127,28 @@ export async function parseMessage(message: string): Promise<NLUResult> {
   // Cache the result
   nluCache.set(cacheKey, result);
 
-  // Optional: Try Ollama for ambiguous cases
-  if (!specialty && !dateRange && process.env.OLLAMA_BASE_URL) {
+  // Use OpenRouter API for better understanding, especially for ambiguous cases
+  if (process.env.OPENROUTER_API_KEY) {
     try {
-      const ollamaResult = await enhanceWithOllama(sanitized);
-      if (ollamaResult) {
-        return ollamaResult;
+      const openRouterResult = await enhanceWithOpenRouter(sanitized);
+      if (openRouterResult) {
+        // Cache and return the enhanced result
+        nluCache.set(cacheKey, openRouterResult);
+        return openRouterResult;
       }
     } catch (error) {
-      console.warn("Ollama enhancement failed, using rule-based result:", error);
+      console.warn("OpenRouter enhancement failed, using rule-based result:", error);
     }
   }
 
   return result;
 }
 
-async function enhanceWithOllama(message: string): Promise<NLUResult | null> {
-  const ollamaUrl = process.env.OLLAMA_BASE_URL;
-  const model = process.env.OLLAMA_MODEL || "llama2";
+async function enhanceWithOpenRouter(message: string): Promise<NLUResult | null> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  const model = "nvidia/nemotron-nano-12b-v2-vl:free";
 
-  if (!ollamaUrl) {
+  if (!apiKey) {
     return null;
   }
 
@@ -160,34 +162,91 @@ Message: "${escapedMessage}"
 Return only valid JSON, no other text.`;
 
   try {
-    const response = await fetch(`${ollamaUrl}/api/generate`, {
+    // First API call with reasoning
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
         model,
-        prompt,
-        stream: false,
-        options: {
-          temperature: 0.3,
-        },
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        reasoning: { enabled: true },
       }),
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.warn("OpenRouter API error:", errorText);
       return null;
     }
 
-    const data = await response.json() as { response?: string };
-    const text = data.response || "";
+    // Extract the assistant message with reasoning_details
+    const result = await response.json();
+    const assistantMessage = result.choices[0].message;
+
+    // Preserve the assistant message with reasoning_details for potential follow-up
+    const messages = [
+      {
+        role: "user" as const,
+        content: prompt,
+      },
+      {
+        role: "assistant" as const,
+        content: assistantMessage.content,
+        reasoning_details: assistantMessage.reasoning_details,
+      },
+      {
+        role: "user" as const,
+        content: "Please verify your extraction is accurate and complete.",
+      },
+    ];
+
+    // Second API call - model continues reasoning from where it left off
+    const response2 = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+      }),
+    });
+
+    if (!response2.ok) {
+      // If second call fails, try to parse the first response
+      const text = assistantMessage.content || "";
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[0]);
+          return parsed as NLUResult;
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    }
+
+    const result2 = await response2.json();
+    const finalText = result2.choices[0].message.content || assistantMessage.content || "";
     
     // Extract JSON from response (might have extra text)
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const jsonMatch = finalText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
       return parsed as NLUResult;
     }
   } catch (error) {
-    console.warn("Ollama request failed:", error);
+    console.warn("OpenRouter request failed:", error);
   }
 
   return null;
