@@ -5,15 +5,37 @@ import { getSpeechRecognition, speak, stopSpeaking } from "@/lib/speech";
 import { apiClient } from "@/lib/api";
 import { ShaderAnimation } from "@/components/ui/shader-lines";
 import { AIVoiceInput } from "@/components/ui/ai-voice-input";
+import {
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from "@/components/ai/conversation";
+import {
+  Message,
+  MessageContent,
+  MessageAvatar,
+} from "@/components/ai/message";
+import {
+  PromptInput,
+  PromptInputTextarea,
+  PromptInputToolbar,
+  PromptInputSubmit,
+} from "@/components/ai/prompt-input";
+import {
+  Reasoning,
+  ReasoningTrigger,
+  ReasoningContent,
+} from "@/components/ai/reasoning";
+import { Response } from "@/components/ai/response";
 
-interface Message {
+interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
 }
 
 export default function VoiceChat() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [textInput, setTextInput] = useState("");
@@ -119,7 +141,7 @@ export default function VoiceChat() {
   const handleUserMessage = async (message: string) => {
     if (!message.trim()) return;
 
-    const userMessage: Message = {
+    const userMessage: ChatMessage = {
       role: "user",
       content: message,
       timestamp: new Date(),
@@ -235,7 +257,7 @@ export default function VoiceChat() {
         }
       }
 
-      const assistantMessage: Message = {
+      const assistantMessage: ChatMessage = {
         role: "assistant",
         content: response,
         timestamp: new Date(),
@@ -245,7 +267,7 @@ export default function VoiceChat() {
       speak(response);
     } catch (error) {
       console.error("Error processing message:", error);
-      const errorMessage: Message = {
+      const errorMessage: ChatMessage = {
         role: "assistant",
         content: "Sorry, I encountered an error. Please try again.",
         timestamp: new Date(),
@@ -273,59 +295,52 @@ export default function VoiceChat() {
 
       {/* Content with backdrop blur for readability */}
       <div className="relative z-10 flex flex-col h-full">
-        <div className="flex-1 overflow-y-auto mb-4 space-y-4">
-          {messages.length === 0 && (
-            <div className="text-center text-white mt-8 backdrop-blur-sm bg-gray-900/80 border border-gray-700 rounded-lg p-6 max-w-md mx-auto">
-              <p className="text-lg mb-2 font-semibold">Welcome to Voice Appointment Booking</p>
-              <p className="text-sm text-gray-300">Click the microphone button or type a message to get started</p>
-              <p className="text-xs mt-2 text-gray-400">Try: &quot;I need a cardiologist near downtown tomorrow&quot;</p>
-            </div>
-          )}
-          {messages.map((message, index) => (
-            <div
-              key={index}
-              className={`flex ${
-                message.role === "user" ? "justify-end" : "justify-start"
-              }`}
-            >
-              <div
-                className={`max-w-xs md:max-w-md px-4 py-2 rounded-lg ${
-                  message.role === "user"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-800 text-gray-100 border border-gray-700"
-                }`}
-              >
-                <p className="whitespace-pre-wrap">{message.content}</p>
+        <Conversation className="relative w-full flex-1 mb-4" style={{ height: "calc(100vh - 200px)" }}>
+          <ConversationContent>
+            {messages.length === 0 && (
+              <div className="text-center text-white mt-8 backdrop-blur-sm bg-gray-900/80 border border-gray-700 rounded-lg p-6 max-w-md mx-auto">
+                <p className="text-lg mb-2 font-semibold">Welcome to Voice Appointment Booking</p>
+                <p className="text-sm text-gray-300">Click the microphone button or type a message to get started</p>
+                <p className="text-xs mt-2 text-gray-400">Try: &quot;I need a cardiologist near downtown tomorrow&quot;</p>
               </div>
-            </div>
-          ))}
-          {isProcessing && (
-            <div className="flex justify-start">
-              <div className="bg-gray-800 text-gray-100 border border-gray-700 px-4 py-2 rounded-lg">
-                <p>Processing...</p>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+            {messages.map((message, index) => (
+              <Message key={index} from={message.role}>
+                <MessageAvatar 
+                  src={message.role === "user" ? "" : ""} 
+                  name={message.role === "user" ? "User" : "AI"} 
+                />
+                <MessageContent>
+                  {message.role === "assistant" ? (
+                    <Response>{message.content}</Response>
+                  ) : (
+                    message.content
+                  )}
+                </MessageContent>
+              </Message>
+            ))}
+            {isProcessing && (
+              <Reasoning isStreaming={isProcessing}>
+                <ReasoningTrigger title="Thinking" />
+                <ReasoningContent>Processing your request...</ReasoningContent>
+              </Reasoning>
+            )}
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
 
         {/* Text input form */}
-        <form onSubmit={handleSubmit} className="flex gap-2 mb-4">
-          <input
-            type="text"
+        <PromptInput onSubmit={handleSubmit} className="mb-4">
+          <PromptInputTextarea
             value={textInput}
-            onChange={(e) => setTextInput(e.target.value)}
+            onChange={(e) => setTextInput(e.currentTarget.value)}
             placeholder="Type your message or use voice..."
-            className="flex-1 px-4 py-2 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-900 text-white placeholder-gray-500"
             disabled={isProcessing}
           />
-          <button
-            type="submit"
-            className="px-6 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            disabled={!textInput.trim() || isProcessing}
-          >
-            Send
-          </button>
-        </form>
+          <PromptInputToolbar>
+            <PromptInputSubmit disabled={!textInput.trim() || isProcessing} />
+          </PromptInputToolbar>
+        </PromptInput>
 
         {/* Voice Input Controls */}
         <div className="relative z-20 flex flex-col items-center gap-4 pb-4">
