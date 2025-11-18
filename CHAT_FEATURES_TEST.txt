@@ -1,0 +1,106 @@
+=== QUICK CHAT FEATURES TEST ===
+Fast test scenarios for the new chat persistence and booking fixes
+
+=== SCENARIO 1: MULTI-CHAT BOOKING ===
+
+Chat 1 - Sarah (Dermatology):
+1. "I need a dermatologist in New York for tomorrow at 9am"
+2. "My name is Sarah and my email is sarah@gmail.com"
+3. "Yes, go for Dr. Emily Rodriguez"
+
+Chat 2 - Ahmed (Cardiology):
+1. "I need a cardiologist in Algiers tomorrow at 10am"
+2. "My name is Ahmed and my email is ahmed@test.com"
+3. "Yes, book it"
+
+Chat 3 - Leila (Pediatrics):
+1. "I need a pediatrician in Annaba tomorrow at 2pm"
+2. "My name is Leila and my email is leila@test.com"
+3. "Yes"
+
+Then switch back to Chat 1 and ask: "What's my appointment?"
+
+
+=== SCENARIO 2: DOCTOR NAME MATCHING ===
+
+1. "I need a dermatology appointment in New York"
+   → Wait for doctor list
+
+2. "Yes, go for Dr emily rodrigues tomorrow at 9am"
+   → Should match "Dr. Emily Rodriguez" and book with her
+
+3. Verify in logs: "Matched doctor name" and correct doctor ID
+
+
+=== SCENARIO 3: FIXED NAME EXTRACTION ===
+
+Test these (should extract name correctly, NOT "name and"):
+
+1. "I need a pediatrics in Annaba and my name is Ahmed and my email ahmedmaasmi.contact@gmail.com for tomorrow 9am"
+   → Should extract: "Ahmed" ✓
+
+2. "My name is Sarah and my email is sarah@gmail.com. I need a dermatologist tomorrow."
+   → Should extract: "Sarah" ✓
+
+3. "I need a dermatology for sarah sarah@gmail.com 9am"
+   → Should extract: "sarah" ✓
+
+
+=== SCENARIO 4: FIXED LOCATION EXTRACTION ===
+
+Test these (should extract location correctly):
+
+1. "I need a pediatrics in Annaba and my name is Ahmed"
+   → Should extract: "Annaba" ✓ (NOT "Annaba and my")
+
+2. "I need a dermatology new york for tomorrow 9am"
+   → Should extract: "new york" ✓ (NOT "new york for")
+
+
+=== SCENARIO 5: CONTEXT BOOKING ===
+
+1. "I need a dermatologist in New York"
+   → System searches and finds doctors
+
+2. "My name is Sarah, email is sarah@gmail.com, tomorrow at 9am"
+   → System should remember the found doctors
+
+3. "Yes"
+   → Should use selectedDoctorId from context (first doctor or previously selected)
+
+4. Verify booking uses correct doctor from context, not a random one
+
+
+=== SCENARIO 6: COMPLETE FLOW ===
+
+Turn 1: "I need a dermatology new york for tomorrow 9am"
+Turn 2: "My name is Sarah and my email is sarah@gmail.com"
+Turn 3: "Yes, go for Dr emily rodrigues"
+
+Expected:
+- Name extracted: "Sarah" (not "Sarah and")
+- Location extracted: "new york" (not "new york for")
+- Doctor matched: "Dr. Emily Rodriguez"
+- Booking successful with correct doctor
+
+
+=== VERIFICATION POINTS ===
+
+After each test, check:
+
+1. Database:
+   - Chat created in Chat table
+   - Messages saved in ChatMessage table
+   - Appointment created with correct doctor
+
+2. Logs:
+   - Name extraction: "✓ Extracted name: [correct name]"
+   - Location extraction: correct location
+   - Doctor matching: "Matched doctor name"
+   - Booking: correct doctor ID used
+
+3. UI:
+   - Chat list shows all chats
+   - Can switch between chats
+   - Messages persist when switching
+

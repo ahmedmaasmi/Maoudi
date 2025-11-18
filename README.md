@@ -35,6 +35,15 @@ A full-stack appointment booking application with voice and text interfaces, pow
    - Automatic creation of Google Calendar events upon booking
    - OAuth-based secure access to doctor calendars
    - Synchronized scheduling across platforms
+   - Multi-platform calendar support: Google Calendar, Outlook, Apple Calendar
+   - iCal (.ics) file export for universal calendar compatibility
+   - Enhanced event details including doctor info, patient details, reason, and symptoms
+
+7. **Smart Chat Management**
+   - Automatic chat title updates with doctor names when appointments are booked
+   - Chat history persistence across sessions
+   - Multiple concurrent chat sessions support
+   - Auto-refresh of chat list when titles change
 
 ## 📖 User Scenarios
 
@@ -55,7 +64,8 @@ A full-stack appointment booking application with voice and text interfaces, pow
 5. Sarah: *"Yes, book the 9 AM appointment"*
 6. System: *"Please provide your name and email"*
 7. Sarah provides her details, and the appointment is booked
-8. System confirms: *"Your appointment with Dr. Smith is confirmed for tomorrow at 9:00 AM. A calendar invite has been sent to your email."*
+8. System confirms: *"Your appointment with Dr. Smith is confirmed for tomorrow at 9:00 AM. 📅 Add to Calendar: • Google Calendar: [link] • Outlook: [link] • Apple Calendar: [link]"*
+9. The chat title automatically updates to "Appointment with Dr. Smith"
 
 ### Scenario 2: Text-Based Booking for Routine Checkup
 
@@ -72,7 +82,8 @@ A full-stack appointment booking application with voice and text interfaces, pow
 5. System geocodes the address and finds nearby dentists
 6. System checks availability and shows: *"I found 2 dentists near your location. Dr. Johnson has slots on Tuesday and Thursday afternoons. Which day works for you?"*
 7. John selects Tuesday, and the system books the appointment
-8. Confirmation with calendar link is provided
+8. Confirmation with multiple calendar links (Google, Outlook, Apple) is provided
+9. Chat title updates to reflect the booked doctor
 
 ### Scenario 3: Mobile Voice Booking While Commuting
 
@@ -86,8 +97,9 @@ A full-stack appointment booking application with voice and text interfaces, pow
 4. System finds pediatricians and checks availability
 5. System: *"I found Dr. Williams available next Friday at 2:00 PM and 4:00 PM"*
 6. Maria: *"2 PM works"*
-7. System books the appointment and sends confirmation via email
-8. Calendar event is automatically added to Maria's Google Calendar
+7. System books the appointment and provides calendar links
+8. Maria can add the appointment to her preferred calendar (Google, Outlook, or Apple Calendar)
+9. Chat title updates to show the booked doctor
 
 ### Scenario 4: Complex Multi-Step Booking
 
@@ -103,6 +115,8 @@ A full-stack appointment booking application with voice and text interfaces, pow
 6. David: *"This week, but only in the mornings"*
 7. System filters and shows: *"Dr. Lee has Tuesday and Wednesday mornings available. Which day?"*
 8. David selects Tuesday, provides his information, and the appointment is confirmed
+9. System provides calendar links for all major calendar platforms
+10. Chat title updates to "Appointment with Dr. Lee"
 
 ### Scenario 5: Accessibility-Focused Voice Booking
 
@@ -138,10 +152,12 @@ This is a monorepo containing:
 ### Backend
 - **Node.js 20** + **Express.js** + **TypeScript**
 - **Prisma** + **SQLite** for database
-- **Google Calendar API** (OAuth per doctor)
+- **Local Calendar Service** (database-based scheduling with calendar link generation)
+- **Google Calendar API** (OAuth per doctor, optional)
 - **chrono-node** for date parsing
 - **geolib** for distance calculations
 - **Nominatim** (OpenStreetMap) for geocoding
+- **iCal generation** for universal calendar export
 
 ### MCP
 - **@modelcontextprotocol/sdk** for MCP server implementation
@@ -167,7 +183,11 @@ This is a monorepo containing:
 pnpm install
 ```
 
-### 2. Google OAuth Setup
+### 2. Google OAuth Setup (Optional)
+
+> **Note**: The system uses a local calendar service by default, so Google OAuth is optional. Calendar links (Google, Outlook, Apple) are generated automatically without requiring OAuth.
+
+If you want to integrate with Google Calendar API for real-time calendar sync:
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project or select existing one
@@ -317,8 +337,73 @@ pnpm --filter @voice-appointment/mobile start
     }
   }
   ```
+  Returns calendar links:
+  ```json
+  {
+    "appointmentId": "string",
+    "calendarLink": "/appointments/...",
+    "googleCalendarLink": "https://calendar.google.com/...",
+    "outlookCalendarLink": "https://outlook.live.com/...",
+    "appleCalendarLink": "data:text/calendar;...",
+    "icalContent": "BEGIN:VCALENDAR..."
+  }
+  ```
+- `POST /appointments/schedule` - Schedule appointment with full details (reason, symptoms, notes)
+  ```json
+  {
+    "doctorId": "string",
+    "startUtc": "ISO8601",
+    "endUtc": "ISO8601",
+    "user": {
+      "name": "string",
+      "email": "string",
+      "phone": "string (optional)"
+    },
+    "reason": "string (optional)",
+    "symptoms": ["string"],
+    "notes": "string (optional)"
+  }
+  ```
+- `GET /appointments` - List appointments (filterable by status, email)
 - `GET /appointments/:id` - Get appointment details
 - `DELETE /appointments/:id` - Cancel appointment
+
+### Chat
+- `POST /chat` - Send a message in a chat (creates new chat if no chatId provided)
+  ```json
+  {
+    "message": "I need a dermatologist in New York",
+    "chatId": "optional-chat-id",
+    "location": {
+      "lat": 40.7128,
+      "lng": -74.0060
+    }
+  }
+  ```
+  Returns:
+  ```json
+  {
+    "chatId": "chat-id",
+    "response": "AI response text",
+    "action": "schedule_appointment",
+    "data": {
+      "appointmentId": "appt-id",
+      "googleCalendarLink": "https://calendar.google.com/...",
+      "outlookCalendarLink": "https://outlook.live.com/...",
+      "appleCalendarLink": "data:text/calendar;...",
+      "icalContent": "BEGIN:VCALENDAR..."
+    }
+  }
+  ```
+- `POST /chat/new` - Create a new chat
+  ```json
+  {
+    "title": "New Chat",
+    "userId": "optional-user-id"
+  }
+  ```
+- `GET /chat` - List all chats (optionally filtered by userId)
+- `GET /chat/:chatId` - Get chat history with all messages
 
 ### Utilities
 - `GET /geocode?q=address` - Geocode address to coordinates (rate limited: 1 req/sec)
@@ -391,10 +476,27 @@ pnpm build
 1. **User speaks/types**: "I need a dentist near downtown tomorrow"
 2. **NLU parses**: Extracts specialty (dentist), location (downtown), date (tomorrow)
 3. **System searches**: Finds nearest dentists using geocoding
-4. **Checks availability**: Queries each doctor's Google Calendar for free slots
+4. **Checks availability**: Queries each doctor's calendar for free slots
 5. **Shows options**: Displays available time slots
-6. **User confirms**: Books appointment and creates Google Calendar event
-7. **Confirmation**: User receives confirmation with calendar link
+6. **User confirms**: Books appointment with doctor selection
+7. **Chat title updates**: Automatically changes to "Appointment with [Doctor Name]"
+8. **Calendar links generated**: System creates links for Google Calendar, Outlook, and Apple Calendar
+9. **iCal export**: Generates .ics file content for universal calendar compatibility
+10. **Confirmation**: User receives confirmation with multiple calendar link options
+
+## ✨ Recent Features
+
+### Calendar Enhancements
+- **Multi-platform calendar support**: Direct links for Google Calendar, Outlook, and Apple Calendar
+- **iCal export**: Universal .ics file format for any calendar application
+- **Enhanced event details**: Calendar events include doctor information, patient details, appointment reason, and symptoms
+- **One-click calendar addition**: Users can add appointments to their preferred calendar with a single click
+
+### Chat Management
+- **Smart chat titles**: Chat titles automatically update to "Appointment with [Doctor Name]" when a doctor is selected
+- **Chat persistence**: All conversations are saved and can be accessed later
+- **Auto-refresh**: Chat list automatically updates when titles change
+- **Multi-chat support**: Users can have multiple concurrent chat sessions
 
 ## 🚧 Future Enhancements
 
@@ -403,7 +505,8 @@ pnpm build
 - Appointment cancellation/rescheduling
 - Interactive map for doctor selection
 - Multi-language support
-- Integration with more calendar providers
+- Calendar event reminders and notifications
+- Recurring appointment support
 
 ## 📄 License
 

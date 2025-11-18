@@ -83,7 +83,8 @@ app.use("/chat", globalRateLimit, chatRoutes); // Public chat endpoint for end u
 
 // Protected routes (require API key authentication)
 app.use("/availability", apiKeyAuth, availabilityRateLimit, availabilityRoutes);
-app.use("/appointments", apiKeyAuth, bookingRateLimit, appointmentsRoutes);
+// Appointments: GET is public, POST/DELETE require auth
+app.use("/appointments", appointmentsRoutes);
 app.use("/geocode", apiKeyAuth, geocodeRateLimit, geocodeRoutes);
 app.use("/nlu", apiKeyAuth, nluRoutes);
 app.use("/patients", apiKeyAuth, patientsRoutes);

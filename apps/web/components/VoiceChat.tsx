@@ -5,6 +5,7 @@ import { getSpeechRecognition, speak, stopSpeaking } from "@/lib/speech";
 import { apiClient } from "@/lib/api";
 import { ShaderAnimation } from "@/components/ui/shader-lines";
 import { AIVoiceInput } from "@/components/ui/ai-voice-input";
+import { Volume2, VolumeX, Plus, MessageSquare } from "lucide-react";
 import {
   Conversation,
   ConversationContent,
@@ -34,11 +35,22 @@ interface ChatMessage {
   timestamp: Date;
 }
 
+interface Chat {
+  id: string;
+  title: string;
+  updatedAt: string;
+  messageCount: number;
+}
+
 export default function VoiceChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [textInput, setTextInput] = useState("");
+  const [isMuted, setIsMuted] = useState(false);
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [showChatList, setShowChatList] = useState(false);
   const recognitionRef = useRef<ReturnType<typeof getSpeechRecognition> | null>(null);
 
   useEffect(() => {
@@ -50,6 +62,9 @@ export default function VoiceChat() {
       };
     }
 
+    // Load chats on mount
+    loadChats();
+
     return () => {
       stopSpeaking();
       if (recognitionRef.current) {
@@ -57,6 +72,44 @@ export default function VoiceChat() {
       }
     };
   }, []);
+
+  const loadChats = async () => {
+    try {
+      const chatList = await apiClient.getChats();
+      setChats(chatList);
+    } catch (error) {
+      console.error("Failed to load chats:", error);
+    }
+  };
+
+  const createNewChat = async () => {
+    try {
+      const newChat = await apiClient.createChat("New Chat");
+      setCurrentChatId(newChat.chatId);
+      setMessages([]);
+      await loadChats();
+      setShowChatList(false);
+    } catch (error) {
+      console.error("Failed to create chat:", error);
+    }
+  };
+
+  const loadChat = async (chatId: string) => {
+    try {
+      const chat = await apiClient.getChat(chatId);
+      setCurrentChatId(chatId);
+      setMessages(
+        chat.messages.map((msg) => ({
+          role: msg.role as "user" | "assistant",
+          content: msg.content,
+          timestamp: new Date(msg.createdAt),
+        }))
+      );
+      setShowChatList(false);
+    } catch (error) {
+      console.error("Failed to load chat:", error);
+    }
+  };
 
   const startListening = () => {
     // Stop any existing recognition first
@@ -151,24 +204,66 @@ export default function VoiceChat() {
     setIsProcessing(true);
 
     try {
-      // Get user location (try browser geolocation first)
+      // Get user location asynchronously (non-blocking) - don't wait for it
       let location: { lat: number; lng: number } | undefined;
+      
+      // Start geolocation request but don't wait for it
+      const locationPromise = new Promise<{ lat: number; lng: number } | undefined>((resolve) => {
+        if (!navigator.geolocation) {
+          resolve(undefined);
+          return;
+        }
+        
+        // Use a shorter timeout and don't block
+        const timeoutId = setTimeout(() => {
+          resolve(undefined);
+        }, 2000); // Reduced from 5s to 2s
+        
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            clearTimeout(timeoutId);
+            resolve({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            });
+          },
+          () => {
+            clearTimeout(timeoutId);
+            resolve(undefined);
+          },
+          { timeout: 2000, maximumAge: 60000 } // Cache for 1 minute
+        );
+      });
 
-      try {
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
-        });
-        location = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        };
-      } catch (error) {
-        // Location not available, will try geocoding if location is mentioned in message
-        console.log("Location not available, will use geocoding if needed");
-      }
+      // Start the chat request immediately, location will be added if available
+      locationPromise.then((loc) => {
+        // If location arrives after chat starts, it's okay - the backend can handle it
+        if (loc) {
+          location = loc;
+        }
+      }).catch(() => {
+        // Ignore location errors
+      });
+
+      // Wait a short time for location, but proceed if it takes too long
+      const locationWithTimeout = Promise.race([
+        locationPromise,
+        new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 500))
+      ]);
+
+      const finalLocation = await locationWithTimeout;
 
       // Use AI agent chat endpoint that uses MCP tools
-      const chatResponse = await apiClient.chat(message, location);
+      const chatResponse = await apiClient.chat(message, finalLocation, currentChatId || undefined);
+      
+      // Update currentChatId if a new chat was created
+      if (chatResponse.chatId && chatResponse.chatId !== currentChatId) {
+        setCurrentChatId(chatResponse.chatId);
+        await loadChats();
+      } else if (chatResponse.chatId === currentChatId) {
+        // Refresh chat list to get updated title
+        await loadChats();
+      }
 
       let response = chatResponse.response;
 
@@ -195,12 +290,22 @@ export default function VoiceChat() {
         } else {
           response += "\n\nNo available slots found in the requested time range.";
         }
-      } else if (chatResponse.action === "book_appointment" && chatResponse.data) {
+      } else if ((chatResponse.action === "book_appointment" || chatResponse.action === "schedule_appointment") && chatResponse.data) {
         const booking = chatResponse.data;
         response += `\n\n✅ Appointment booked successfully!\n`;
-        response += `Appointment ID: ${booking.appointmentId}\n`;
+        response += `Appointment ID: ${booking.appointmentId}\n\n`;
+        response += `📅 Add to Calendar:\n`;
+        if (booking.googleCalendarLink) {
+          response += `• Google Calendar: ${booking.googleCalendarLink}\n`;
+        }
+        if (booking.outlookCalendarLink) {
+          response += `• Outlook: ${booking.outlookCalendarLink}\n`;
+        }
+        if (booking.appleCalendarLink) {
+          response += `• Apple Calendar: ${booking.appleCalendarLink}\n`;
+        }
         if (booking.calendarLink) {
-          response += `Calendar link: ${booking.calendarLink}`;
+          response += `• View Appointment: ${booking.calendarLink}\n`;
         }
       } else if (chatResponse.action === "get_doctor_schedule" && chatResponse.data?.appointments) {
         const schedule = chatResponse.data;
@@ -264,7 +369,9 @@ export default function VoiceChat() {
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
-      speak(response);
+      if (!isMuted) {
+        speak(response);
+      }
     } catch (error) {
       console.error("Error processing message:", error);
       const errorMessage: ChatMessage = {
@@ -273,7 +380,9 @@ export default function VoiceChat() {
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMessage]);
-      speak("Sorry, I encountered an error. Please try again.");
+      if (!isMuted) {
+        speak("Sorry, I encountered an error. Please try again.");
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -295,6 +404,50 @@ export default function VoiceChat() {
 
       {/* Content with backdrop blur for readability */}
       <div className="relative z-10 flex flex-col h-full">
+        {/* Chat Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowChatList(!showChatList)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 text-gray-300 transition-colors"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span className="text-sm">Chats</span>
+            </button>
+            <button
+              onClick={createNewChat}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 text-gray-300 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="text-sm">New Chat</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Chat List Sidebar */}
+        {showChatList && (
+          <div className="absolute left-4 top-16 z-30 w-64 bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg p-2 max-h-96 overflow-y-auto">
+            <div className="space-y-1">
+              {chats.map((chat) => (
+                <button
+                  key={chat.id}
+                  onClick={() => loadChat(chat.id)}
+                  className={`w-full text-left px-3 py-2 rounded hover:bg-gray-800 transition-colors ${
+                    currentChatId === chat.id ? "bg-gray-800 border border-gray-600" : ""
+                  }`}
+                >
+                  <div className="text-sm font-medium text-gray-200 truncate">{chat.title}</div>
+                  <div className="text-xs text-gray-400">
+                    {chat.messageCount} message{chat.messageCount !== 1 ? "s" : ""}
+                  </div>
+                </button>
+              ))}
+              {chats.length === 0 && (
+                <div className="text-sm text-gray-400 px-3 py-2">No chats yet</div>
+              )}
+            </div>
+          </div>
+        )}
         <Conversation className="relative w-full flex-1 mb-4" style={{ height: "calc(100vh - 200px)" }}>
           <ConversationContent>
             {messages.length === 0 && (
@@ -353,7 +506,30 @@ export default function VoiceChat() {
                 stopListening();
               }
             }}
-          />   
+          />
+          {/* Mute/Unmute Button */}
+          <button
+            onClick={() => {
+              setIsMuted(!isMuted);
+              if (!isMuted) {
+                stopSpeaking();
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 text-gray-300 transition-colors"
+            title={isMuted ? "Unmute audio" : "Mute audio"}
+          >
+            {isMuted ? (
+              <>
+                <VolumeX className="w-4 h-4" />
+                <span className="text-sm">Unmute</span>
+              </>
+            ) : (
+              <>
+                <Volume2 className="w-4 h-4" />
+                <span className="text-sm">Mute</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>

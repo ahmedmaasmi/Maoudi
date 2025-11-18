@@ -58,10 +58,46 @@ Algiers
 19. CURRENT LOCATION DIRECT:
 I need a cardiologist near my current location. My name is Ahmed, email is ahmed@test.com, tomorrow at 9am.
 
+=== NEW FEATURES TEST PROMPTS ===
+
+20. DOCTOR NAME MATCHING:
+    I need a dermatologist in New York.
+    (Wait for doctor list)
+    Yes, go for Dr. Emily Rodriguez tomorrow at 9am. My email is sarah@gmail.com.
+
+21. FIXED NAME EXTRACTION (No "and"):
+    I need a pediatrics in Annaba and my name is Ahmed and my email is ahmedmaasmi.contact@gmail.com for tomorrow 9am.
+    (Should extract "Ahmed" NOT "Ahmed and")
+
+22. FIXED LOCATION EXTRACTION:
+    I need a dermatology new york for tomorrow 9am.
+    (Should extract "new york" NOT "new york for")
+
+23. CONTEXT BOOKING:
+    I need a dermatologist in New York. My name is Sarah, email is sarah@gmail.com, tomorrow at 9am.
+    (Wait for doctor list)
+    Yes
+    (Should use selectedDoctorId from context)
+
+24. MULTI-CHAT - Chat 1:
+    I need a cardiologist. My name is Ahmed, email is ahmed@test.com, tomorrow at 9am in Algiers.
+
+25. MULTI-CHAT - Create New Chat:
+    (Click "New Chat" button)
+    I need a dermatologist. My name is Sarah, email is sarah@gmail.com, tomorrow at 2pm in New York.
+
+26. MULTI-CHAT - Switch Back:
+    (Switch to first chat using chat list)
+    What's my appointment?
+
 === TESTING TIPS ===
 - Check API logs to see the complete flow
 - Verify name, email, and time extraction
 - Confirm doctor selection from database
 - Check availability calculation
 - Verify appointment creation
+- NEW: Test chat persistence by creating multiple chats
+- NEW: Verify doctor name matching in logs
+- NEW: Check name/location extraction doesn't include "and"
+- NEW: Verify selectedDoctorId is used from context when booking
 

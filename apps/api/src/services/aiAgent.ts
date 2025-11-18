@@ -5,6 +5,14 @@ import { AppError } from "../utils/errors";
 import { normalizeSpecialty } from "../utils/specialty";
 import axios from "axios";
 
+// Only log verbose details in development
+const DEBUG = process.env.NODE_ENV === "development";
+const debugLog = (...args: any[]) => {
+  if (DEBUG) {
+    console.log(...args);
+  }
+};
+
 const parseSymptoms = (value?: string | null): string[] | null => {
   if (!value) {
     return null;
@@ -76,33 +84,64 @@ When booking, confirm the appointment details with the user first.`,
   }
 
   /**
+   * Match doctor name from user message to found doctors
+   */
+  private matchDoctorName(userMessage: string): string | null {
+    if (!this.context.foundDoctors || this.context.foundDoctors.length === 0) {
+      return null;
+    }
+
+    const lowerMessage = userMessage.toLowerCase();
+    
+    // Try to match doctor names
+    for (const doctor of this.context.foundDoctors) {
+      const doctorName = doctor.name.toLowerCase();
+      // Remove "Dr." or "Dr" prefix for matching
+      const nameWithoutPrefix = doctorName.replace(/^dr\.?\s*/i, "");
+      const firstName = nameWithoutPrefix.split(/\s+/)[0];
+      const lastName = nameWithoutPrefix.split(/\s+/).slice(1).join(" ");
+      
+      // Check if message contains full name or parts of it
+      if (lowerMessage.includes(doctorName) || 
+          lowerMessage.includes(nameWithoutPrefix) ||
+          (firstName && lowerMessage.includes(firstName)) ||
+          (lastName && lowerMessage.includes(lastName))) {
+        debugLog(`Matched doctor name "${doctor.name}" from message`);
+        return doctor.id;
+      }
+    }
+    
+    return null;
+  }
+
+  /**
    * Process user message and return AI response, potentially using tools
    */
   async processMessage(
     userMessage: string,
     userLocation?: { lat: number; lng: number }
   ): Promise<{ response: string; action?: string; data?: any }> {
-    const timestamp = new Date().toISOString();
-    console.log(`\n[${timestamp}] ========== PROCESSING MESSAGE ==========`);
-    console.log(`[${timestamp}] User message: "${userMessage}"`);
-    console.log(`[${timestamp}] User location:`, userLocation || "not provided");
+    debugLog(`Processing message: "${userMessage}"`);
+
+    // Try to match doctor name from message
+    const matchedDoctorId = this.matchDoctorName(userMessage);
+    if (matchedDoctorId) {
+      this.context.selectedDoctorId = matchedDoctorId;
+      debugLog(`Selected doctor from message: ${matchedDoctorId}`);
+    }
 
     // Add user message to context
     this.context.messages.push({
       role: "user",
       content: userMessage,
     });
-    console.log(`[${timestamp}] ✓ Message added to conversation context`);
 
     // Extract user info from message (email, phone, name)
-    console.log(`[${timestamp}] [STEP 1] Extracting user information from message...`);
     this.extractUserInfo(userMessage);
-    console.log(`[${timestamp}] [STEP 1] Current user info:`, this.context.userInfo);
 
     // Parse message to extract intent and entities
-    console.log(`[${timestamp}] [STEP 2] Parsing message for intent and entities...`);
     const nluResult = await parseMessage(userMessage);
-    console.log(`[${timestamp}] [STEP 2] NLU Result:`, {
+    debugLog("NLU Result:", {
       intent: nluResult.intent,
       specialty: nluResult.entities?.specialty,
       location: nluResult.entities?.location,
@@ -112,7 +151,6 @@ When booking, confirm the appointment details with the user first.`,
     // Preserve specialty from conversation if mentioned
     if (nluResult.entities?.specialty && !this.context.specialty) {
       this.context.specialty = nluResult.entities.specialty;
-      console.log(`[${timestamp}] ✓ Specialty saved to context: ${this.context.specialty}`);
     }
 
     // Extract location preference from message
@@ -123,11 +161,9 @@ When booking, confirm the appointment details with the user first.`,
         lowerMessage.includes("my location") ||
         lowerMessage.includes("where i am")) {
       this.context.locationPreference = "current";
-      console.log(`[${timestamp}] ✓ Location preference set to: current location`);
     } else if (nluResult.entities?.location) {
       this.context.locationPreference = "specified";
       this.context.specifiedLocation = nluResult.entities.location;
-      console.log(`[${timestamp}] ✓ Location preference set to: specified (${nluResult.entities.location})`);
     }
 
     // Auto-book if we have enough information: email, time, and specialty
@@ -135,26 +171,18 @@ When booking, confirm the appointment details with the user first.`,
     const hasTime = nluResult.entities?.dateRange?.start;
     const hasSpecialty = this.context.specialty || nluResult.entities?.specialty;
 
-    console.log(`[${timestamp}] [STEP 3] Checking if we have enough info for auto-booking...`);
-    console.log(`[${timestamp}] [STEP 3] Has email: ${hasEmail ? `✓ (${hasEmail})` : "✗"}`);
-    console.log(`[${timestamp}] [STEP 3] Has time: ${hasTime ? `✓ (${hasTime})` : "✗"}`);
-    console.log(`[${timestamp}] [STEP 3] Has specialty: ${hasSpecialty ? `✓ (${hasSpecialty})` : "✗"}`);
-    console.log(`[${timestamp}] [STEP 3] Has selected doctor: ${this.context.selectedDoctorId ? `✓ (${this.context.selectedDoctorId})` : "✗"}`);
-
     if (hasEmail && hasTime && hasSpecialty && !this.context.selectedDoctorId) {
-      console.log(`[${timestamp}] [STEP 4] ⚡ Attempting AUTO-BOOKING with database data...`);
+      debugLog("Attempting auto-booking...");
       
       // If location is specified but not geocoded yet, geocode it now
       let locationForBooking = userLocation;
       if (!locationForBooking && this.context.locationPreference === "specified" && this.context.specifiedLocation) {
-        console.log(`[${timestamp}] [STEP 4] Geocoding specified location: ${this.context.specifiedLocation}`);
         try {
           const { geocode } = await import("./geocode");
           const geocodeResult = await geocode(this.context.specifiedLocation);
           locationForBooking = { lat: geocodeResult.lat, lng: geocodeResult.lng };
-          console.log(`[${timestamp}] [STEP 4] ✓ Geocoded to:`, locationForBooking);
         } catch (error) {
-          console.log(`[${timestamp}] [STEP 4] ✗ Geocoding failed, proceeding without location filter:`, error);
+          debugLog("Geocoding failed:", error);
         }
       }
       
@@ -165,40 +193,22 @@ When booking, confirm the appointment details with the user first.`,
         locationForBooking
       );
       if (autoBookResult) {
-        console.log(`[${timestamp}] [STEP 4] ✓ Auto-booking successful!`);
-        console.log(`[${timestamp}] [STEP 4] Response:`, autoBookResult.response);
-        console.log(`[${timestamp}] ========== PROCESSING COMPLETE ==========\n`);
         return autoBookResult;
-      } else {
-        console.log(`[${timestamp}] [STEP 4] ✗ Auto-booking failed, falling back to AI...`);
       }
-    } else {
-      console.log(`[${timestamp}] [STEP 4] Skipping auto-booking (missing required info or doctor already selected)`);
     }
 
     // Use OpenRouter AI to generate intelligent response and decide on actions
     if (process.env.OPENROUTER_API_KEY) {
-      console.log(`[${timestamp}] [STEP 5] Using OpenRouter AI to generate response...`);
       try {
         const aiResponse = await this.callAIWithTools(userMessage, nluResult, userLocation);
-        console.log(`[${timestamp}] [STEP 5] ✓ AI response generated`);
-        console.log(`[${timestamp}] [STEP 5] Response:`, aiResponse.response);
-        console.log(`[${timestamp}] [STEP 5] Action:`, aiResponse.action || "none");
-        console.log(`[${timestamp}] ========== PROCESSING COMPLETE ==========\n`);
         return aiResponse;
       } catch (error) {
-        console.warn(`[${timestamp}] [STEP 5] ✗ AI agent error, falling back to rule-based:`, error);
+        console.warn("AI agent error, falling back to rule-based:", error);
       }
-    } else {
-      console.log(`[${timestamp}] [STEP 5] OpenRouter API key not configured, using rule-based fallback`);
     }
 
     // Fallback to rule-based logic
-    console.log(`[${timestamp}] [STEP 6] Using rule-based response...`);
     const ruleBasedResult = this.ruleBasedResponse(nluResult, userMessage, userLocation);
-    console.log(`[${timestamp}] [STEP 6] ✓ Rule-based response generated`);
-    console.log(`[${timestamp}] [STEP 6] Response:`, ruleBasedResult.response);
-    console.log(`[${timestamp}] ========== PROCESSING COMPLETE ==========\n`);
     return ruleBasedResult;
   }
 
@@ -210,56 +220,43 @@ When booking, confirm the appointment details with the user first.`,
     startTimeUtc: string,
     userLocation?: { lat: number; lng: number }
   ): Promise<{ response: string; action?: string; data?: any } | null> {
-    const timestamp = new Date().toISOString();
-    console.log(`\n[${timestamp}] 🔄 AUTO-BOOKING: Starting automatic booking process`);
-    console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Specialty: ${specialty}`);
-    console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Requested time: ${startTimeUtc}`);
-    console.log(`[${timestamp}] 🔄 AUTO-BOOKING: User location:`, userLocation || "not provided");
+    debugLog("Auto-booking:", { specialty, startTimeUtc, userLocation });
 
     try {
       let doctorsWithCalendar: any[] = [];
 
       // If we already have doctors in context, use them
       if (this.context.foundDoctors && this.context.foundDoctors.length > 0) {
-        console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Using ${this.context.foundDoctors.length} doctors from context`);
+        debugLog(`Using ${this.context.foundDoctors.length} doctors from context`);
         // Fetch full doctor data for doctors in context
         const doctorIds = this.context.foundDoctors.map((d) => d.id);
-        console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Fetching doctor details for IDs:`, doctorIds);
         const doctors = await prismaClient.doctor.findMany({
           where: { id: { in: doctorIds } },
         });
         doctorsWithCalendar = doctors;
-        console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Found ${doctorsWithCalendar.length} doctors (local calendar)`);
       } else {
-        console.log(`[${timestamp}] 🔄 AUTO-BOOKING: No doctors in context, querying database...`);
         // Normalize specialty to canonical form (e.g., "cardiologist" -> "cardiology")
         const normalizedSpecialty = normalizeSpecialty(specialty);
-        console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Normalized specialty: "${specialty}" -> "${normalizedSpecialty}"`);
         
         // Fetch doctors from database for this specialty
         // SQLite doesn't support case-insensitive mode, so we fetch all and filter
-        console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Fetching all doctors from database...`);
         const allDoctors = await prismaClient.doctor.findMany();
-        console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Found ${allDoctors.length} total doctors in database`);
 
         // Filter by normalized specialty (case-insensitive)
         const doctors = allDoctors.filter((d) =>
           normalizeSpecialty(d.specialty) === normalizedSpecialty
         );
-        console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Filtered to ${doctors.length} doctors matching specialty "${normalizedSpecialty}"`);
 
         if (doctors.length === 0) {
-          console.log(`[${timestamp}] 🔄 AUTO-BOOKING: ✗ No doctors found for specialty "${normalizedSpecialty}"`);
+          debugLog(`No doctors found for specialty "${normalizedSpecialty}"`);
           return null; // No doctors found, let AI handle it
         }
 
       // No need to filter by calendar credentials - we use local calendar
       doctorsWithCalendar = doctors;
-      console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Using all ${doctorsWithCalendar.length} doctors (local calendar)`);
       }
 
       if (doctorsWithCalendar.length === 0) {
-        console.log(`[${timestamp}] 🔄 AUTO-BOOKING: ✗ No doctors available`);
         return null; // No doctors found, let AI handle it
       }
 
@@ -268,7 +265,6 @@ When booking, confirm the appointment details with the user first.`,
       const radiusKm = 50; // Default radius: 50km
       
       if (userLocation) {
-        console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Filtering doctors by distance from user location (radius: ${radiusKm}km)...`);
         const { getDistance } = await import("geolib");
         const doctorsWithDistance = doctorsWithCalendar
           .map((doctor) => ({
@@ -282,7 +278,6 @@ When booking, confirm the appointment details with the user first.`,
           .sort((a, b) => a.distance - b.distance);
         
         if (doctorsWithDistance.length === 0) {
-          console.log(`[${timestamp}] 🔄 AUTO-BOOKING: ⚠ No doctors within ${radiusKm}km radius, using closest doctor regardless of distance`);
           // If no doctors within radius, use the closest one anyway
           const allWithDistance = doctorsWithCalendar
             .map((doctor) => ({
@@ -294,37 +289,49 @@ When booking, confirm the appointment details with the user first.`,
             }))
             .sort((a, b) => a.distance - b.distance);
           selectedDoctor = allWithDistance[0].doctor;
-          console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Selected closest doctor: ${selectedDoctor.name} (${allWithDistance[0].distance.toFixed(2)} km away)`);
+          debugLog(`Selected closest doctor: ${selectedDoctor.name} (${allWithDistance[0].distance.toFixed(2)} km away)`);
         } else {
           selectedDoctor = doctorsWithDistance[0].doctor;
-          console.log(`[${timestamp}] 🔄 AUTO-BOOKING: ✓ Selected nearest doctor: ${selectedDoctor.name} (${doctorsWithDistance[0].distance.toFixed(2)} km away)`);
+          debugLog(`Selected nearest doctor: ${selectedDoctor.name} (${doctorsWithDistance[0].distance.toFixed(2)} km away)`);
         }
-      } else {
-        console.log(`[${timestamp}] 🔄 AUTO-BOOKING: No user location, selecting first available doctor: ${selectedDoctor.name}`);
       }
 
       // Store in context
       this.context.foundDoctors = doctorsWithCalendar;
       this.context.selectedDoctorId = selectedDoctor.id;
-      console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Selected doctor ID: ${selectedDoctor.id}`);
-      console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Doctor name: ${selectedDoctor.name}`);
-      console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Doctor specialty: ${selectedDoctor.specialty}`);
+      debugLog(`Selected doctor: ${selectedDoctor.name} (${selectedDoctor.specialty})`);
 
       // Check availability for the requested time
       const startDate = new Date(startTimeUtc);
       const endDate = new Date(startDate.getTime() + 30 * 60 * 1000); // 30 min default
-      console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Checking availability for doctor ${selectedDoctor.id}...`);
-      console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Requested start time: ${startDate.toISOString()}`);
-      console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Checking availability window: ${startDate.toISOString()} to ${new Date(startDate.getTime() + 24 * 60 * 60 * 1000).toISOString()}`);
 
       const { checkAvailability } = await import("./localCalendar");
-      const availableSlots = await checkAvailability(
+      
+      // First, check if the exact requested time is available
+      const requestedTimeCheck = await checkAvailability(
         selectedDoctor.id,
         startDate,
-        new Date(startDate.getTime() + 24 * 60 * 60 * 1000), // Check next 24 hours
+        endDate,
         30
       );
-      console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Found ${availableSlots.length} available slots`);
+      
+      // If the exact time is not available, search for slots in a wider window
+      let availableSlots: Array<{ start: Date; end: Date }> = [];
+      if (requestedTimeCheck.length === 0) {
+        // Requested time is booked, search for next available slots
+        debugLog(`Requested time ${startTimeUtc} is not available, searching for alternatives...`);
+        availableSlots = await checkAvailability(
+          selectedDoctor.id,
+          startDate,
+          new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000), // Check next 7 days
+          30
+        );
+      } else {
+        // Exact time is available
+        availableSlots = requestedTimeCheck;
+      }
+      
+      debugLog(`Found ${availableSlots.length} available slots`);
 
       // Find a slot that matches or is close to requested time
       const requestedTime = startDate.getTime();
@@ -336,46 +343,45 @@ When booking, confirm the appointment details with the user first.`,
 
       let slotToUse = matchingSlot || availableSlots[0];
 
-      // If no slots found but we have a requested time, check if the requested time is reasonable
-      // and create a slot directly (the calendar will prevent double-booking)
+      // If no slots found at all, return a helpful message
       if (!slotToUse) {
-        console.log(`[${timestamp}] 🔄 AUTO-BOOKING: No generated slots, checking if requested time is bookable...`);
         const requestedHour = startDate.getUTCHours();
         const requestedMinute = startDate.getUTCMinutes();
         
         // Check if requested time is within reasonable working hours (8 AM - 6 PM UTC)
-        // This accounts for different timezones (e.g., 9 AM Algiers = 8 AM UTC)
         if (requestedHour >= 8 && requestedHour < 18) {
-          console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Requested time ${requestedHour}:${String(requestedMinute).padStart(2, '0')} UTC is within working hours, using it directly`);
-          slotToUse = {
-            start: startDate,
-            end: endDate,
+          // Time is reasonable but no slots found - doctor might be fully booked
+          return {
+            response: `I found ${selectedDoctor.name}, a ${specialty} specialist, but they don't have any available slots around ${startTimeUtc}. Would you like me to check other times or find another doctor?`,
+            action: "check_availability",
+            data: { slots: [] },
           };
         } else {
-          console.log(`[${timestamp}] 🔄 AUTO-BOOKING: ✗ Requested time is outside working hours (${requestedHour}:${String(requestedMinute).padStart(2, '0')} UTC)`);
+          debugLog(`Requested time is outside working hours (${requestedHour}:${String(requestedMinute).padStart(2, '0')} UTC)`);
           return {
-            response: `I found ${selectedDoctor.name}, a ${specialty} specialist, but they don't have availability at ${startTimeUtc}. Would you like me to check other times?`,
+            response: `I found ${selectedDoctor.name}, a ${specialty} specialist, but they don't have availability at ${startTimeUtc} (outside working hours). Would you like me to check other times?`,
             action: "check_availability",
+            data: { slots: [] },
           };
         }
       }
 
-      console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Selected slot: ${slotToUse.start.toISOString()} to ${slotToUse.end.toISOString()}`);
-      if (matchingSlot) {
-        console.log(`[${timestamp}] 🔄 AUTO-BOOKING: ✓ Found exact match for requested time`);
-      } else {
-        console.log(`[${timestamp}] 🔄 AUTO-BOOKING: ⚠ Using closest available slot (not exact match)`);
-      }
-
+      debugLog(`Selected slot: ${slotToUse.start.toISOString()} to ${slotToUse.end.toISOString()}`);
+      
+      // Determine if we're using the exact requested time or an alternative
+      const isExactMatch = matchingSlot !== undefined;
+      const slotTime = slotToUse.start.getTime();
+      const timeDiff = Math.abs(slotTime - requestedTime);
+      const hoursDiff = Math.round(timeDiff / (60 * 60 * 1000));
+      
       // Book the appointment
       const user = {
         name: this.context.userInfo?.name || "Patient",
         email: this.context.userInfo?.email!,
         phone: this.context.userInfo?.phone,
       };
-      console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Booking appointment for user:`, user);
+      debugLog("Booking appointment for user:", user);
 
-      console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Creating appointment booking...`);
       const bookingResult = await this.createAppointmentBooking({
         doctorId: selectedDoctor.id,
         startUtc: slotToUse.start.toISOString(),
@@ -383,17 +389,25 @@ When booking, confirm the appointment details with the user first.`,
         user,
         durationMinutes: 30,
       });
-      console.log(`[${timestamp}] 🔄 AUTO-BOOKING: ✓ Appointment booking successful!`);
-      console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Appointment ID: ${bookingResult.appointmentId}`);
-      console.log(`[${timestamp}] 🔄 AUTO-BOOKING: Calendar event ID: ${bookingResult.gcalEventId || "N/A"}`);
+      debugLog(`Appointment booking successful! ID: ${bookingResult.appointmentId}`);
+
+      // Craft response message based on whether we used exact time or alternative
+      let responseMessage: string;
+      if (isExactMatch) {
+        responseMessage = `Great! I've booked an appointment with ${selectedDoctor.name} (${specialty}) for ${slotToUse.start.toLocaleString()}. Your appointment is confirmed!`;
+      } else if (hoursDiff <= 2) {
+        responseMessage = `The time you requested wasn't available, but I found a slot ${hoursDiff === 0 ? 'at the same time' : `just ${hoursDiff} hour${hoursDiff > 1 ? 's' : ''} ${slotTime > requestedTime ? 'later' : 'earlier'}`}. I've booked your appointment with ${selectedDoctor.name} (${specialty}) for ${slotToUse.start.toLocaleString()}. Your appointment is confirmed!`;
+      } else {
+        responseMessage = `The time you requested wasn't available, but I found the next available slot. I've booked your appointment with ${selectedDoctor.name} (${specialty}) for ${slotToUse.start.toLocaleString()}. Your appointment is confirmed!`;
+      }
 
       return {
-        response: `Great! I've booked an appointment with ${selectedDoctor.name} (${specialty}) for ${slotToUse.start.toLocaleString()}. Your appointment is confirmed!`,
+        response: responseMessage,
         action: "schedule_appointment",
         data: bookingResult,
       };
     } catch (error) {
-      console.error(`[${timestamp}] 🔄 AUTO-BOOKING: ✗ Auto-booking failed:`, error);
+      console.error("Auto-booking failed:", error);
       return null; // Fall back to AI
     }
   }
@@ -433,25 +447,37 @@ When booking, confirm the appointment details with the user first.`,
     }
 
     // Extract name (look for patterns like "my name is", "i'm", "i am", "call me", or name at start of sentence)
-    let nameMatch = userMessage.match(/(?:my name is|i'm|i am|call me|this is|hello im|hi im|i am)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i);
+    // Improved regex to avoid capturing "and" after the name
+    let nameMatch = userMessage.match(/(?:my name is|i'm|i am|call me|this is|hello im|hi im|i am)\s+([A-Z][a-z]+)(?:\s+and\s+my|\s+and\s+email|\s+and\s+phone|$|\s*[,\.]|\s+(?:a|an|the|is|needs|wants|email|phone))/i);
     if (!nameMatch) {
       // Try to extract name at the start of a sentence (e.g., "Sarah, a busy professional...")
-      nameMatch = userMessage.match(/^(?:hello|hi)\s+im\s+([A-Z][a-z]+)/i);
+      nameMatch = userMessage.match(/^(?:hello|hi)\s+im\s+([A-Z][a-z]+)(?:\s+and\s+my|\s+and\s+email|$|\s*[,\.])/i);
     }
     if (!nameMatch) {
       // Try "hello im ahmed" pattern
-      nameMatch = userMessage.match(/^(?:hello|hi)\s+im\s+([A-Z][a-z]+)/i);
+      nameMatch = userMessage.match(/^(?:hello|hi)\s+im\s+([A-Z][a-z]+)(?:\s+and\s+my|\s+and\s+email|$|\s*[,\.])/i);
     }
     if (!nameMatch) {
-      // Try name at start followed by comma or common words
-      nameMatch = userMessage.match(/^([A-Z][a-z]+)(?:\s+[A-Z][a-z]+)?(?:\s*[,\.]|\s+(?:a|an|the|is|needs|wants|and))/);
+      // Try name at start followed by comma or common words, but stop before "and"
+      nameMatch = userMessage.match(/^([A-Z][a-z]+)(?:\s+[A-Z][a-z]+)?(?:\s*[,\.]|\s+(?:a|an|the|is|needs|wants|email|phone))/);
+    }
+    // Additional pattern: "for sarah" or "for [name]"
+    if (!nameMatch) {
+      nameMatch = userMessage.match(/(?:for|with|patient|name)\s+([A-Z][a-z]+)(?:\s+[A-Z][a-z]+)?(?:\s+[a-z]+@|\s*[,\.]|$)/i);
     }
     if (nameMatch && !this.context.userInfo?.name) {
+      // Clean up the name - take only the first word if it looks like multiple words
+      let extractedName = nameMatch[1].trim();
+      // If name contains "and" or other stop words, take only the part before them
+      const stopWords = /\s+(and|my|email|phone|is|a|an|the)\s+/i;
+      if (stopWords.test(extractedName)) {
+        extractedName = extractedName.split(stopWords)[0].trim();
+      }
       this.context.userInfo = {
         ...this.context.userInfo,
-        name: nameMatch[1],
+        name: extractedName,
       };
-      console.log(`[${timestamp}] [EXTRACT] ✓ Extracted name: ${nameMatch[1]}`);
+      console.log(`[${timestamp}] [EXTRACT] ✓ Extracted name: ${extractedName}`);
     } else if (nameMatch) {
       console.log(`[${timestamp}] [EXTRACT] Name already in context: ${this.context.userInfo?.name}`);
     } else {
@@ -536,6 +562,9 @@ IMPORTANT RULES:
 - If you have email, time, and specialty, the system will automatically find and book with an available doctor
 - Use the user's email and name from context when calling booking tools
 - The search_doctors tool queries the local database - no external searches needed
+- When booking, if selectedDoctorId is in context, you can omit doctorId from the tool call - the system will use the selected doctor automatically
+- If the user mentions a doctor name (e.g., "Dr. Emily Rodriguez"), match it to the foundDoctors list and use that doctor's ID
+- When user confirms booking with "yes" or similar, use the selectedDoctorId from context if available
 
 LOCATION HANDLING:
 - If location is needed but not provided, ask the user: "Would you like me to find doctors near your current location, or would you prefer to specify a location (e.g., 'Algiers', 'New York')?"
@@ -819,8 +848,10 @@ If no tool is needed, just respond with:
       }
 
       case "book_appointment": {
-        if (!args.doctorId || !args.startUtc) {
-          throw new Error("Doctor ID and start time are required");
+        // Use doctorId from args, or fall back to selectedDoctorId from context
+        const doctorId = args.doctorId || this.context.selectedDoctorId;
+        if (!doctorId || !args.startUtc) {
+          throw new Error("Doctor ID and start time are required. Please specify a doctor or select one from the search results.");
         }
 
         // Use provided user info or fall back to context
@@ -835,7 +866,7 @@ If no tool is needed, just respond with:
         }
 
         return this.createAppointmentBooking({
-          doctorId: args.doctorId,
+          doctorId,
           startUtc: args.startUtc,
           endUtc: args.endUtc,
           user,
@@ -844,8 +875,10 @@ If no tool is needed, just respond with:
       }
 
       case "schedule_appointment": {
-        if (!args.doctorId || !args.startUtc) {
-          throw new Error("Doctor ID and start time are required");
+        // Use doctorId from args, or fall back to selectedDoctorId from context
+        const doctorId = args.doctorId || this.context.selectedDoctorId;
+        if (!doctorId || !args.startUtc) {
+          throw new Error("Doctor ID and start time are required. Please specify a doctor or select one from the search results.");
         }
 
         // Use provided user info or fall back to context
@@ -1152,14 +1185,18 @@ If no tool is needed, just respond with:
       ? new Date(args.endUtc)
       : new Date(startDate.getTime() + (args.durationMinutes || 30) * 60 * 1000);
 
-    const { eventId, calendarLink } = await createCalendarEvent(
+    const calendarResult = await createCalendarEvent(
       args.doctorId,
       startDate,
       endDate,
       args.user.name,
       args.user.email,
-      args.user.phone
+      args.user.phone,
+      args.reason,
+      args.symptoms
     );
+    
+    const { eventId, calendarLink } = calendarResult;
 
     const appointment = await prismaClient.appointment.create({
       data: {
@@ -1211,6 +1248,10 @@ If no tool is needed, just respond with:
       patientId: patient.id,
       gcalEventId: eventId,
       calendarLink,
+      googleCalendarLink: calendarResult.googleCalendarLink,
+      outlookCalendarLink: calendarResult.outlookCalendarLink,
+      appleCalendarLink: calendarResult.appleCalendarLink,
+      icalContent: calendarResult.icalContent,
     };
   }
 
@@ -1335,4 +1376,5 @@ If no tool is needed, just respond with:
 export function getAIAgent(): AppointmentAIAgent {
   return new AppointmentAIAgent();
 }
+
 

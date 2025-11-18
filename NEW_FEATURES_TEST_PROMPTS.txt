@@ -1,0 +1,219 @@
+=== NEW FEATURES TEST PROMPTS ===
+Test prompts for chat persistence, doctor name matching, and improved extraction
+
+=== FEATURE 1: CHAT PERSISTENCE & MULTIPLE CHATS ===
+
+1. CREATE FIRST CHAT - Complete Booking:
+   I need a dermatologist in New York. My name is Sarah, email is sarah@gmail.com, tomorrow at 9am.
+
+2. CREATE SECOND CHAT - Different Patient:
+   I need a cardiologist in Algiers. My name is Ahmed, email is ahmed@test.com, tomorrow at 10am.
+
+3. SWITCH BACK TO FIRST CHAT:
+   (Use the chat list UI to switch back to the first chat)
+   Check my previous appointment
+
+4. CREATE THIRD CHAT - Pediatrics:
+   I need a pediatrician. My name is Leila, email is leila@test.com, tomorrow at 2pm in Annaba.
+
+
+=== FEATURE 2: DOCTOR NAME MATCHING & CONTEXT BOOKING ===
+
+5. SEARCH DOCTORS - Turn 1:
+   I need a dermatology appointment in New York for tomorrow at 9am.
+
+6. CONFIRM WITH DOCTOR NAME - Turn 2:
+   Yes, go for Dr. Emily Rodriguez tomorrow at 9am
+   (Should match "Dr. Emily Rodriguez" to found doctors and use her ID)
+
+7. ALTERNATIVE - SEARCH THEN CONFIRM:
+   I need a dermatologist in New York.
+   (Wait for doctor list)
+   Yes, book with Dr. Emily Rodriguez tomorrow at 9am. My email is sarah@gmail.com.
+
+8. PARTIAL NAME MATCH:
+   I need a cardiologist in Algiers.
+   (Wait for doctor list)
+   Book with Dr. Ahmed tomorrow at 10am. My name is Ahmed, email is ahmed@test.com.
+
+9. LAST NAME ONLY:
+   I need a dermatologist in New York.
+   (Wait for doctor list)
+   Yes, go with Rodriguez tomorrow at 9am. My email is sarah@gmail.com.
+
+
+=== FEATURE 3: FIXED NAME EXTRACTION (NO "AND" ISSUES) ===
+
+10. NAME WITH "AND" - Should extract only "Ahmed":
+    I need a pediatrics in Annaba and my name is Ahmed and my email is ahmedmaasmi.contact@gmail.com for tomorrow 9am.
+    (Should extract: "Ahmed" NOT "Ahmed and")
+
+11. NAME WITH "AND MY EMAIL":
+    My name is Sarah and my email is sarah@gmail.com. I need a dermatologist tomorrow at 2pm.
+    (Should extract: "Sarah" NOT "Sarah and")
+
+12. NAME WITH "AND MY PHONE":
+    Hi, my name is Maria and my phone is 555-1234. I need a dentist tomorrow at 3pm.
+    (Should extract: "Maria" NOT "Maria and")
+
+13. NAME FOR PATIENT:
+    I need a dermatology for Sarah sarah@gmail.com 9am.
+    (Should extract: "Sarah" from "for Sarah")
+
+
+=== FEATURE 4: FIXED LOCATION EXTRACTION ===
+
+14. LOCATION WITH "AND" - Should extract only "Annaba":
+    I need a pediatrics in Annaba and my name is Ahmed.
+    (Should extract: "Annaba" NOT "Annaba and my")
+
+15. LOCATION WITH "FOR TOMORROW":
+    I need a dermatology new york for tomorrow 9am.
+    (Should extract: "new york" NOT "new york for")
+
+16. LOCATION WITH "FOR [NAME]":
+    I need a dermatology for sarah sarah@gmail.com.
+    (Should extract location before "for", or handle gracefully)
+
+17. MULTI-WORD LOCATION:
+    I need a cardiologist near New York City tomorrow at 9am.
+    (Should extract: "New York City" or "New York")
+
+
+=== FEATURE 5: COMPLETE BOOKING FLOW WITH CONTEXT ===
+
+18. PROGRESSIVE BOOKING - Turn 1:
+    I need a dermatologist in New York.
+
+19. PROGRESSIVE BOOKING - Turn 2:
+    My name is Sarah and my email is sarah@gmail.com.
+
+20. PROGRESSIVE BOOKING - Turn 3:
+    Tomorrow at 9am would be perfect.
+
+21. PROGRESSIVE BOOKING - Turn 4 (Confirm with Doctor Name):
+    Yes, book with Dr. Emily Rodriguez.
+
+22. ALTERNATIVE FLOW - Search, Select, Confirm:
+    I need a dermatologist in New York.
+    (Wait for list)
+    1
+    (Selects first doctor)
+    Yes, tomorrow at 9am. My email is sarah@gmail.com.
+
+23. CONFIRMATION WITHOUT DOCTOR ID:
+    I need a dermatologist in New York. My name is Sarah, email is sarah@gmail.com, tomorrow at 9am.
+    (Wait for doctor list)
+    Yes
+    (Should use selectedDoctorId from context)
+
+
+=== FEATURE 6: MULTI-CHAT SCENARIOS ===
+
+24. CHAT 1 - Patient A:
+    I need a cardiologist. My name is Ahmed, email is ahmed@test.com, tomorrow at 9am in Algiers.
+
+25. CREATE NEW CHAT - Patient B:
+    (Click "New Chat" button)
+    I need a dermatologist. My name is Sarah, email is sarah@gmail.com, tomorrow at 2pm in New York.
+
+26. SWITCH TO CHAT 1 - Continue Patient A:
+    (Switch back to first chat)
+    Can you check my appointment details?
+
+27. CREATE CHAT 3 - Patient C:
+    (Create new chat)
+    I need a pediatrician. My name is Leila, email is leila@test.com, tomorrow at 10am.
+
+
+=== FEATURE 7: EDGE CASES ===
+
+28. DOCTOR NAME WITH TYPO:
+    I need a dermatologist in New York.
+    (Wait for list)
+    Yes, go for Dr emily rodrigues tomorrow at 9am.
+    (Should still match "Emily Rodriguez" despite typo)
+
+29. DOCTOR NAME CASE INSENSITIVE:
+    I need a dermatologist in New York.
+    (Wait for list)
+    Book with dr. EMILY RODRIGUEZ tomorrow at 9am.
+
+30. MULTIPLE DOCTORS SAME NAME:
+    I need a cardiologist in Algiers.
+    (Wait for list - if multiple doctors)
+    Book with the first one tomorrow at 10am.
+
+31. CONFIRM WITHOUT DOCTOR NAME:
+    I need a dermatologist in New York. My name is Sarah, email is sarah@gmail.com, tomorrow at 9am.
+    (Wait for list)
+    Yes
+    (Should use first/selected doctor from context)
+
+
+=== TESTING CHECKLIST ===
+
+✅ CHAT PERSISTENCE:
+   - Create multiple chats
+   - Switch between chats
+   - Verify messages are saved
+   - Verify chat history loads correctly
+
+✅ DOCTOR NAME MATCHING:
+   - Search for doctors
+   - Mention doctor name in confirmation
+   - Verify correct doctor is selected
+   - Check logs for "Matched doctor name" message
+
+✅ NAME EXTRACTION:
+   - Test names with "and" after them
+   - Verify "Ahmed" not "Ahmed and"
+   - Check logs for correct extraction
+
+✅ LOCATION EXTRACTION:
+   - Test locations with "and" after them
+   - Verify "Annaba" not "Annaba and my"
+   - Check logs for correct extraction
+
+✅ CONTEXT BOOKING:
+   - Search doctors first
+   - Confirm without specifying doctor ID
+   - Verify selectedDoctorId is used from context
+   - Check logs for correct doctor ID in booking
+
+✅ MULTI-CHAT:
+   - Create 3+ different chats
+   - Each with different patient
+   - Switch between them
+   - Verify context is maintained per chat
+
+
+=== EXPECTED LOG MESSAGES ===
+
+For Doctor Name Matching:
+✓ Matched doctor name "Dr. Emily Rodriguez" from message
+✓ Selected doctor from message: [doctor-id]
+
+For Name Extraction:
+✓ [EXTRACT] ✓ Extracted name: Ahmed
+(Should NOT see "Ahmed and")
+
+For Location Extraction:
+✓ Location: "Annaba"
+(Should NOT see "Annaba and my")
+
+For Context Booking:
+✓ [BOOKING] Doctor ID: [correct-doctor-id-from-context]
+✓ [BOOKING] ✓ Doctor found: Dr. Emily Rodriguez (dermatology)
+
+
+=== SUCCESS CRITERIA ===
+
+✅ Multiple chats can be created and switched
+✅ Chat messages persist in database
+✅ Doctor names are matched correctly from user input
+✅ Name extraction doesn't include "and" or extra words
+✅ Location extraction doesn't include "and" or extra words
+✅ Booking uses selectedDoctorId from context when user confirms
+✅ Each chat maintains its own context (user info, selected doctor, etc.)
+

@@ -134,13 +134,75 @@ export const apiClient = {
     return response.data;
   },
 
-  chat: async (message: string, location?: { lat: number; lng: number }) => {
+  chat: async (message: string, location?: { lat: number; lng: number }, chatId?: string) => {
     const response = await api.post<{
+      chatId: string;
       response: string;
       action?: string;
       data?: any;
-    }>("/chat", { message, location });
+    }>("/chat", { message, location, chatId });
     return response.data;
+  },
+
+  createChat: async (title?: string, userId?: string) => {
+    const response = await api.post<{ chatId: string; title: string }>("/chat/new", { title, userId });
+    return response.data;
+  },
+
+  getChats: async (userId?: string) => {
+    const response = await api.get<Array<{
+      id: string;
+      title: string;
+      userId: string | null;
+      createdAt: string;
+      updatedAt: string;
+      messageCount: number;
+    }>>("/chat", { params: userId ? { userId } : {} });
+    return response.data;
+  },
+
+  getChat: async (chatId: string) => {
+    const response = await api.get<{
+      id: string;
+      title: string;
+      userId: string | null;
+      messages: Array<{
+        id: string;
+        role: string;
+        content: string;
+        metadata: any;
+        createdAt: string;
+      }>;
+      createdAt: string;
+      updatedAt: string;
+    }>(`/chat/${chatId}`);
+    return response.data;
+  },
+
+  getAppointments: async (params?: { status?: string; email?: string }) => {
+    const response = await api.get<{
+      appointments: Array<{
+        id: string;
+        startUtc: string;
+        endUtc: string;
+        userName: string;
+        userEmail: string;
+        userPhone?: string | null;
+        status: string;
+        reason?: string | null;
+        notes?: string | null;
+        symptoms?: string | null;
+        doctor: Doctor;
+      }>;
+    }>("/appointments", { params });
+    return response.data.appointments;
+  },
+
+  getAllDoctors: async (specialty?: string) => {
+    const response = await api.get<{ doctors: Doctor[] }>("/doctors", {
+      params: specialty ? { specialty } : {},
+    });
+    return response.data.doctors;
   },
 };
 

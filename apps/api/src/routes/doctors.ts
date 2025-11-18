@@ -36,6 +36,25 @@ type AppointmentWithDetails = RawAppointment & {
   symptoms: string | null;
 };
 
+router.get("/", async (req: Request, res: Response) => {
+  const { specialty } = req.query;
+  
+  const where: any = {};
+  if (specialty && typeof specialty === "string") {
+    const normalizedSpecialty = normalizeSpecialty(specialty.trim());
+    where.specialty = {
+      contains: normalizedSpecialty,
+    };
+  }
+
+  const doctors = await prismaClient.doctor.findMany({
+    where,
+    orderBy: { name: "asc" },
+  });
+
+  res.json({ doctors });
+});
+
 router.get("/search", async (req: Request, res: Response) => {
   // Validate query parameters
   const validation = DoctorSearchQuerySchema.safeParse(req.query);

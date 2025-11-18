@@ -96,8 +96,12 @@ export async function parseMessage(message: string): Promise<NLUResult> {
     if (index !== -1) {
       // Extract text after location keyword
       const afterKeyword = sanitized.substring(index + keyword.length).trim();
-      // Take first few words as location
-      const words = afterKeyword.split(/\s+/).slice(0, 3);
+      // Take first few words as location, but stop at stop words like "and", "my", "for", "tomorrow"
+      const stopWords = /\s+(and|my|for|tomorrow|tomorow|today|email|phone|name|is|a|an|the)\s+/i;
+      const stopIndex = afterKeyword.search(stopWords);
+      const locationText = stopIndex > 0 ? afterKeyword.substring(0, stopIndex) : afterKeyword;
+      // Take first 1-2 words as location (city names are usually 1-2 words)
+      const words = locationText.split(/\s+/).slice(0, 2).filter(w => w.length > 0);
       if (words.length > 0) {
         location = words.join(" ");
         break;
@@ -128,7 +132,9 @@ export async function parseMessage(message: string): Promise<NLUResult> {
   nluCache.set(cacheKey, result);
 
   // Use OpenRouter API for better understanding, especially for ambiguous cases
-  if (process.env.OPENROUTER_API_KEY) {
+  // Only use if rule-based parsing didn't find key information
+  const needsEnhancement = !specialty && !dateRange && !location;
+  if (process.env.OPENROUTER_API_KEY && needsEnhancement) {
     try {
       const openRouterResult = await enhanceWithOpenRouter(sanitized);
       if (openRouterResult) {
@@ -146,7 +152,7 @@ export async function parseMessage(message: string): Promise<NLUResult> {
 
 async function enhanceWithOpenRouter(message: string): Promise<NLUResult | null> {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  const model = "nvidia/nemotron-nano-12b-v2-vl:free";
+  const model = "openai/gpt-4o-mini"; // Use faster, cheaper model
 
   if (!apiKey) {
     return null;
@@ -162,7 +168,7 @@ Message: "${escapedMessage}"
 Return only valid JSON, no other text.`;
 
   try {
-    // First API call with reasoning
+    // Single API call - removed the slow second verification call for better performance
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -177,7 +183,8 @@ Return only valid JSON, no other text.`;
             content: prompt,
           },
         ],
-        reasoning: { enabled: true },
+        temperature: 0.3, // Lower temperature for more consistent results
+        max_tokens: 200, // Limit response size
       }),
     });
 
@@ -187,63 +194,18 @@ Return only valid JSON, no other text.`;
       return null;
     }
 
-    // Extract the assistant message with reasoning_details
     const result = await response.json();
-    const assistantMessage = result.choices[0].message;
-
-    // Preserve the assistant message with reasoning_details for potential follow-up
-    const messages = [
-      {
-        role: "user" as const,
-        content: prompt,
-      },
-      {
-        role: "assistant" as const,
-        content: assistantMessage.content,
-        reasoning_details: assistantMessage.reasoning_details,
-      },
-      {
-        role: "user" as const,
-        content: "Please verify your extraction is accurate and complete.",
-      },
-    ];
-
-    // Second API call - model continues reasoning from where it left off
-    const response2 = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-      }),
-    });
-
-    if (!response2.ok) {
-      // If second call fails, try to parse the first response
-      const text = assistantMessage.content || "";
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          const parsed = JSON.parse(jsonMatch[0]);
-          return parsed as NLUResult;
-        } catch {
-          return null;
-        }
-      }
-      return null;
-    }
-
-    const result2 = await response2.json();
-    const finalText = result2.choices[0].message.content || assistantMessage.content || "";
+    const text = result.choices[0]?.message?.content || "";
     
     // Extract JSON from response (might have extra text)
-    const jsonMatch = finalText.match(/\{[\s\S]*\}/);
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return parsed as NLUResult;
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return parsed as NLUResult;
+      } catch {
+        return null;
+      }
     }
   } catch (error) {
     console.warn("OpenRouter request failed:", error);

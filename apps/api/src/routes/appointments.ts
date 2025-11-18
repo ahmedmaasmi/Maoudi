@@ -3,6 +3,7 @@ import { prismaClient } from "../utils/prisma";
 import { BookingRequestSchema, ScheduleAppointmentRequestSchema } from "@voice-appointment/shared";
 import { createCalendarEvent } from "../services/localCalendar";
 import { AppError } from "../utils/errors";
+import { apiKeyAuth } from "../middleware/auth";
 
 const router = Router();
 
@@ -46,14 +47,18 @@ async function createAppointmentBooking(params: {
     },
   });
 
-  const { eventId, calendarLink } = await createCalendarEvent(
+  const calendarResult = await createCalendarEvent(
     doctorId,
     startDate,
     endDate,
     user.name,
     user.email,
-    user.phone
+    user.phone,
+    reason,
+    symptoms
   );
+  
+  const { eventId, calendarLink } = calendarResult;
 
   const appointment = await prismaClient.appointment.create({
     data: {
@@ -105,7 +110,28 @@ async function createAppointmentBooking(params: {
   };
 }
 
-router.post("/book", async (req: Request, res: Response) => {
+router.get("/", async (req: Request, res: Response) => {
+  const { status, email } = req.query;
+  
+  const where: any = {};
+  if (status && typeof status === "string") {
+    where.status = status;
+  }
+  if (email && typeof email === "string") {
+    where.userEmail = email;
+  }
+
+  const appointments = await prismaClient.appointment.findMany({
+    where,
+    include: { doctor: true },
+    orderBy: { startUtc: "desc" },
+    take: 100, // Limit to 100 most recent
+  });
+
+  res.json({ appointments });
+});
+
+router.post("/book", apiKeyAuth, async (req: Request, res: Response) => {
   const validation = BookingRequestSchema.safeParse(req.body);
   if (!validation.success) {
     throw new AppError("VALIDATION_ERROR", "Invalid request body", 400, validation.error.errors);
@@ -135,7 +161,7 @@ router.post("/book", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/schedule", async (req: Request, res: Response) => {
+router.post("/schedule", apiKeyAuth, async (req: Request, res: Response) => {
   const validation = ScheduleAppointmentRequestSchema.safeParse(req.body);
   if (!validation.success) {
     throw new AppError("VALIDATION_ERROR", "Invalid request body", 400, validation.error.errors);
@@ -185,7 +211,7 @@ router.get("/:id", async (req: Request, res: Response) => {
   res.json({ appointment });
 });
 
-router.delete("/:id", async (req: Request, res: Response) => {
+router.delete("/:id", apiKeyAuth, async (req: Request, res: Response) => {
   const { id } = req.params;
 
   const appointment = await prismaClient.appointment.findUnique({
