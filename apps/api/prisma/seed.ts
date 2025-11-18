@@ -7,7 +7,7 @@ async function main() {
   console.log("Seeding database...");
   console.log("Tip: rerun with `pnpm --filter apps/api prisma db seed` if needed.");
 
-  // Create sample doctors
+  // Create all doctors from the database
   const doctors = [
     {
       name: "Dr. Sarah Johnson",
@@ -54,7 +54,6 @@ async function main() {
       phone: "+1-555-0105",
       email: "lisa.anderson@example.com",
     },
-    // Algeria dataset
     {
       name: "Dr. Amel Bensalah",
       specialty: "cardiology",
@@ -190,7 +189,6 @@ async function main() {
       phone: "+213-37-770-260",
       email: "ikram.sahraoui@soukahras-kids.dz",
     },
-    // Additional Cardiologists
     {
       name: "Dr. Ahmed Maasmi",
       specialty: "cardiology",
@@ -310,6 +308,7 @@ async function main() {
     },
   ];
 
+  // Upsert all doctors
   for (const doctor of doctors) {
     if (doctor.email) {
       const existing = await prisma.doctor.findFirst({
@@ -331,11 +330,56 @@ async function main() {
   const persistedDoctors = await prisma.doctor.findMany();
   const doctorsByEmail = new Map(persistedDoctors.map((doctor) => [doctor.email, doctor]));
 
+  // Create all patients with their symptoms
   const patients = [
-    { name: "Nadia Boulifa", email: "nadia.boulifa@example.com", phone: "+213-550-100-200" },
-    { name: "Karim Djemai", email: "karim.djemai@example.com", phone: "+213-550-300-111" },
-    { name: "Lamia Cherif", email: "lamia.cherif@example.com", phone: "+213-550-444-222" },
-    { name: "Yacine Ferhat", email: "yacine.ferhat@example.com", phone: "+213-550-555-333" },
+    { 
+      name: "Nadia Boulifa", 
+      email: "nadia.boulifa@example.com", 
+      phone: "+213-550-100-200",
+      symptoms: ["chest pain", "dizziness"]
+    },
+    { 
+      name: "Karim Djemai", 
+      email: "karim.djemai@example.com", 
+      phone: "+213-550-300-111",
+      symptoms: ["fatigue"]
+    },
+    { 
+      name: "Lamia Cherif", 
+      email: "lamia.cherif@example.com", 
+      phone: "+213-550-444-222",
+      symptoms: ["itching", "rash"]
+    },
+    { 
+      name: "Yacine Ferhat", 
+      email: "yacine.ferhat@example.com", 
+      phone: "+213-550-555-333",
+      symptoms: ["blurred vision"]
+    },
+    { 
+      name: "ali", 
+      email: "ahmed@test.com", 
+      phone: null,
+      symptoms: []
+    },
+    { 
+      name: "Ahmed", 
+      email: "ahmedmaasmi.contact@gmail.com", 
+      phone: null,
+      symptoms: []
+    },
+    { 
+      name: "Dr", 
+      email: "sarah@gmail.com", 
+      phone: null,
+      symptoms: ["pain"]
+    },
+    { 
+      name: "Maria", 
+      email: "maria.garcia@test.com", 
+      phone: null,
+      symptoms: []
+    },
   ];
 
   const patientMap = new Map<string, { id: string; email: string; name: string; phone?: string | null }>();
@@ -354,13 +398,76 @@ async function main() {
       },
     });
     patientMap.set(record.email, record);
+
+    // Create patient symptoms
+    for (const symptom of patient.symptoms) {
+      await prisma.patientSymptom.upsert({
+        where: {
+          patientId_symptom: {
+            patientId: record.id,
+            symptom: symptom.trim().toLowerCase(),
+          },
+        },
+        update: {
+          notedAt: new Date(),
+        },
+        create: {
+          patientId: record.id,
+          symptom: symptom.trim().toLowerCase(),
+        },
+      });
+    }
   }
 
+  // Create all appointments
+  // Note: Using relative times (hoursFromNow) so appointments work when seed is run at any time
   const sampleAppointments = [
+    {
+      doctorEmail: "emily.rodriguez@example.com",
+      patientEmail: "sarah@gmail.com",
+      userName: "Dr",
+      userEmail: "sarah@gmail.com",
+      userPhone: null,
+      hoursFromNow: 24, // Tomorrow at 9am (relative to seed time)
+      durationMinutes: 30,
+      reason: null,
+      notes: null,
+      symptoms: ["pain"],
+      status: "confirmed",
+    },
+    {
+      doctorEmail: "emily.rodriguez@example.com",
+      patientEmail: "sarah@gmail.com",
+      userName: "Dr",
+      userEmail: "sarah@gmail.com",
+      userPhone: null,
+      hoursFromNow: 168, // 7 days from now
+      durationMinutes: 30,
+      reason: "Dermatology appointment",
+      notes: null,
+      symptoms: [],
+      status: "confirmed",
+    },
+    {
+      doctorEmail: "emily.rodriguez@example.com",
+      patientEmail: "sarah@gmail.com",
+      userName: "Dr",
+      userEmail: "sarah@gmail.com",
+      userPhone: null,
+      hoursFromNow: 720, // 30 days from now
+      durationMinutes: 30,
+      reason: "Dermatology consultation",
+      notes: null,
+      symptoms: [],
+      status: "confirmed",
+    },
     {
       doctorEmail: "amel.bensalah@dzcare.dz",
       patientEmail: "nadia.boulifa@example.com",
-      hoursFromNow: -48,
+      userName: "Nadia Boulifa",
+      userEmail: "nadia.boulifa@example.com",
+      userPhone: "+213-550-100-200",
+      hoursFromNow: -48, // 2 days ago
       durationMinutes: 30,
       reason: "Follow-up on chest pain",
       notes: "Patient mentioned occasional dizziness.",
@@ -368,9 +475,25 @@ async function main() {
       status: "completed",
     },
     {
+      doctorEmail: "mourad.kaci@oran-smile.dz",
+      patientEmail: "maria.garcia@test.com",
+      userName: "Maria",
+      userEmail: "maria.garcia@test.com",
+      userPhone: null,
+      hoursFromNow: 24, // Tomorrow at 2pm
+      durationMinutes: 30,
+      reason: null,
+      notes: null,
+      symptoms: [],
+      status: "confirmed",
+    },
+    {
       doctorEmail: "yasmine.laouar@derma-constantine.dz",
       patientEmail: "lamia.cherif@example.com",
-      hoursFromNow: -5,
+      userName: "Lamia Cherif",
+      userEmail: "lamia.cherif@example.com",
+      userPhone: "+213-550-444-222",
+      hoursFromNow: 12, // 12 hours from now
       durationMinutes: 30,
       reason: "Persistent rash",
       notes: "Suspected allergic reaction to detergent.",
@@ -378,9 +501,51 @@ async function main() {
       status: "confirmed",
     },
     {
+      doctorEmail: "adel.kerkar@annaba-kids.dz",
+      patientEmail: "sarah@gmail.com",
+      userName: "Sarah",
+      userEmail: "sarah@gmail.com",
+      userPhone: null,
+      hoursFromNow: 168, // 7 days from now
+      durationMinutes: 30,
+      reason: "Dermatology consultation",
+      notes: null,
+      symptoms: [],
+      status: "confirmed",
+    },
+    {
+      doctorEmail: "adel.kerkar@annaba-kids.dz",
+      patientEmail: "ahmedmaasmi.contact@gmail.com",
+      userName: "Ahmed",
+      userEmail: "ahmedmaasmi.contact@gmail.com",
+      userPhone: null,
+      hoursFromNow: 24, // Tomorrow at 8am
+      durationMinutes: 30,
+      reason: "Pediatric consultation",
+      notes: null,
+      symptoms: [],
+      status: "confirmed",
+    },
+    {
+      doctorEmail: "adel.kerkar@annaba-kids.dz",
+      patientEmail: "ahmedmaasmi.contact@gmail.com",
+      userName: "ahmed and",
+      userEmail: "ahmedmaasmi.contact@gmail.com",
+      userPhone: null,
+      hoursFromNow: 36, // Tomorrow at 9am
+      durationMinutes: 30,
+      reason: null,
+      notes: null,
+      symptoms: [],
+      status: "confirmed",
+    },
+    {
       doctorEmail: "karim.gherbi@blida-familycare.dz",
       patientEmail: "karim.djemai@example.com",
-      hoursFromNow: 12,
+      userName: "Karim Djemai",
+      userEmail: "karim.djemai@example.com",
+      userPhone: "+213-550-300-111",
+      hoursFromNow: 18, // 18 hours from now
       durationMinutes: 30,
       reason: "General check-up",
       notes: "Patient requested fasting lab work.",
@@ -390,11 +555,92 @@ async function main() {
     {
       doctorEmail: "farid.bouzid@bejaia-vision.dz",
       patientEmail: "yacine.ferhat@example.com",
-      hoursFromNow: 30,
+      userName: "Yacine Ferhat",
+      userEmail: "yacine.ferhat@example.com",
+      userPhone: "+213-550-555-333",
+      hoursFromNow: 48, // 2 days from now
       durationMinutes: 45,
       reason: "Blurred vision",
       notes: "Needs refraction assessment.",
       symptoms: ["blurred vision"],
+      status: "confirmed",
+    },
+    {
+      doctorEmail: "leila.benali@cardio-annaba.dz",
+      patientEmail: "ahmed@test.com",
+      userName: "Ahmed",
+      userEmail: "ahmed@test.com",
+      userPhone: null,
+      hoursFromNow: 24, // Tomorrow at 8am
+      durationMinutes: 30,
+      reason: null,
+      notes: null,
+      symptoms: [],
+      status: "confirmed",
+    },
+    {
+      doctorEmail: "leila.benali@cardio-annaba.dz",
+      patientEmail: "ahmed@test.com",
+      userName: "Ahmed",
+      userEmail: "ahmed@test.com",
+      userPhone: null,
+      hoursFromNow: 33, // Tomorrow at 9am
+      durationMinutes: 30,
+      reason: "Cardiology consultation",
+      notes: null,
+      symptoms: [],
+      status: "confirmed",
+    },
+    {
+      doctorEmail: "leila.benali@cardio-annaba.dz",
+      patientEmail: "ahmed@test.com",
+      userName: "Ahmed",
+      userEmail: "ahmed@test.com",
+      userPhone: null,
+      hoursFromNow: 48, // 2 days from now at 9am
+      durationMinutes: 30,
+      reason: null,
+      notes: null,
+      symptoms: [],
+      status: "confirmed",
+    },
+    {
+      doctorEmail: "leila.benali@cardio-annaba.dz",
+      patientEmail: "ahmed@test.com",
+      userName: "Ahmed",
+      userEmail: "ahmed@test.com",
+      userPhone: null,
+      hoursFromNow: 48.5, // 2 days from now at 9:30am
+      durationMinutes: 30,
+      reason: null,
+      notes: null,
+      symptoms: [],
+      status: "confirmed",
+    },
+    {
+      doctorEmail: "leila.benali@cardio-annaba.dz",
+      patientEmail: "ahmed@test.com",
+      userName: "Mohamed",
+      userEmail: "ahmed@test.com",
+      userPhone: null,
+      hoursFromNow: 49, // 2 days from now at 10am
+      durationMinutes: 30,
+      reason: null,
+      notes: null,
+      symptoms: [],
+      status: "confirmed",
+    },
+    {
+      doctorEmail: "leila.benali@cardio-annaba.dz",
+      patientEmail: "ahmed@test.com",
+      userName: "ali",
+      userEmail: "ahmed@test.com",
+      userPhone: null,
+      hoursFromNow: 49.5, // 2 days from now at 10:30am
+      durationMinutes: 30,
+      reason: null,
+      notes: null,
+      symptoms: [],
       status: "confirmed",
     },
   ];
@@ -402,50 +648,117 @@ async function main() {
   for (const sample of sampleAppointments) {
     const doctor = sample.doctorEmail ? doctorsByEmail.get(sample.doctorEmail) : undefined;
     const patient = patientMap.get(sample.patientEmail);
-    if (!doctor || !patient) continue;
+    if (!doctor) continue;
 
     const startUtc = new Date(Date.now() + sample.hoursFromNow * 60 * 60 * 1000);
     const endUtc = new Date(startUtc.getTime() + sample.durationMinutes * 60 * 1000);
 
-    const appointment = await prisma.appointment.create({
+    await prisma.appointment.create({
       data: {
         doctorId: doctor.id,
-        patientId: patient.id,
+        patientId: patient?.id || null,
         startUtc,
         endUtc,
-        userName: patient.name,
-        userEmail: patient.email,
-        userPhone: patient.phone || null,
-        reason: sample.reason,
-        notes: sample.notes,
-        symptoms: JSON.stringify(sample.symptoms),
+        userName: sample.userName,
+        userEmail: sample.userEmail,
+        userPhone: sample.userPhone || null,
+        reason: sample.reason || null,
+        notes: sample.notes || null,
+        symptoms: sample.symptoms.length > 0 ? JSON.stringify(sample.symptoms) : null,
         status: sample.status,
       },
     });
-
-    await Promise.all(
-      sample.symptoms.map((symptom) =>
-        prisma.patientSymptom.upsert({
-          where: {
-            patientId_symptom: {
-              patientId: patient.id,
-              symptom: symptom.trim().toLowerCase(),
-            },
-          },
-          update: {
-            notedAt: new Date(),
-          },
-          create: {
-            patientId: patient.id,
-            symptom: symptom.trim().toLowerCase(),
-          },
-        })
-      )
-    );
   }
 
-  console.log(`Created ${doctors.length} doctors`);
-  console.log(`Created ${patients.length} patients with historical appointments`);
+  // Create sample chats (optional - for testing chat functionality)
+  const sampleChats = [
+    {
+      title: "New Chat",
+      userId: null,
+      metadata: null,
+      messages: [
+        {
+          role: "user",
+          content: " I need a dermatologist in New York.",
+          metadata: null,
+        },
+        {
+          role: "assistant",
+          content: "Great! I'll look for dermatologists in New York. Could you please provide your preferred time for the appointment or any specific symptoms you're experiencing?",
+          metadata: JSON.stringify({
+            action: "search_doctors",
+            data: { doctors: [] }
+          }),
+        },
+      ],
+    },
+    {
+      title: "Appointment with Leila Benali",
+      userId: null,
+      metadata: null,
+      messages: [
+        {
+          role: "user",
+          content: "I need a cardiologist. My name is ali, email is ahmed@test.com, tomorrow at 9am.",
+          metadata: null,
+        },
+        {
+          role: "assistant",
+          content: "The time you requested wasn't available, but I found the next available slot. I've booked your appointment with Dr. Leila Benali (cardiology) for 11/20/2025, 10:30:00 AM. Your appointment is confirmed!",
+          metadata: JSON.stringify({
+            action: "schedule_appointment",
+            data: { appointmentId: "sample-id" }
+          }),
+        },
+      ],
+    },
+    {
+      title: "Appointment with Mourad Kaci",
+      userId: null,
+      metadata: null,
+      messages: [
+        {
+          role: "user",
+          content: "I need a dentist appointment. My name is Maria, email is maria.garcia@test.com, and I want to see someone tomorrow afternoon around 3pm.",
+          metadata: null,
+        },
+        {
+          role: "assistant",
+          content: "Great! I've booked an appointment with Dr. Mourad Kaci (dentistry) for 11/19/2025, 3:00:00 PM. Your appointment is confirmed!",
+          metadata: JSON.stringify({
+            action: "schedule_appointment",
+            data: { appointmentId: "sample-id" }
+          }),
+        },
+      ],
+    },
+  ];
+
+  for (const chat of sampleChats) {
+    const createdChat = await prisma.chat.create({
+      data: {
+        title: chat.title,
+        userId: chat.userId,
+        metadata: chat.metadata,
+      },
+    });
+
+    for (const message of chat.messages) {
+      await prisma.chatMessage.create({
+        data: {
+          chatId: createdChat.id,
+          role: message.role,
+          content: message.content,
+          metadata: message.metadata,
+        },
+      });
+    }
+  }
+
+  console.log(`Created/Updated ${doctors.length} doctors`);
+  console.log(`Created/Updated ${patients.length} patients`);
+  console.log(`Created ${sampleAppointments.length} appointments`);
+  console.log(`Created ${sampleChats.length} sample chats`);
   console.log("Seeding completed!");
 }
 
@@ -457,4 +770,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-

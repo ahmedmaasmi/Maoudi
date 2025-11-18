@@ -254,9 +254,18 @@ API_KEY=your_secret_api_key_here
 # Run Prisma migrations
 pnpm prisma:migrate
 
-# Optional: Seed sample doctors
+# Seed the database with sample data (doctors, patients, appointments, chats)
+# This will populate the database with all the data from the current database
 pnpm prisma:seed
 ```
+
+**Note**: The seed file (`apps/api/prisma/seed.ts`) contains all the data from the current database, including:
+- 33 doctors across various specialties
+- 8 patients with their symptoms
+- 25 sample appointments (past and future)
+- Sample chat conversations
+
+When you clone the repository on another PC, running `pnpm prisma:seed` will populate the database with the same initial data, ensuring a consistent development experience across different machines.
 
 ### 5. Start Development Servers
 
