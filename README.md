@@ -440,4 +440,3 @@ This is a demo project. Contributions welcome!
 ## 📞 Support
 
 For issues or questions, please open an issue in the repository.
-
