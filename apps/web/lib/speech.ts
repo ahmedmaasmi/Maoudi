@@ -1,5 +1,7 @@
 "use client";
 
+import { speakWithElevenLabs, isElevenLabsAvailable, stopAudio } from "./elevenlabs";
+
 export interface BrowserSpeechRecognition extends EventTarget {
   continuous: boolean;
   interimResults: boolean;
@@ -49,8 +51,28 @@ export function getSpeechRecognition(): BrowserSpeechRecognition | null {
   return new SpeechRecognition();
 }
 
-export function speak(text: string, lang: string = "en-US") {
-  if (typeof window === "undefined" || !window.speechSynthesis) {
+export async function speak(text: string, lang: string = "en-US"): Promise<void> {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  // Stop any currently playing audio
+  stopSpeaking();
+
+  // Try Eleven Labs first if available
+  if (isElevenLabsAvailable()) {
+    try {
+      await speakWithElevenLabs(text);
+      return;
+    } catch (error) {
+      console.warn("Eleven Labs TTS failed, falling back to browser TTS:", error);
+      // Fall through to browser TTS
+    }
+  }
+
+  // Fallback to browser speechSynthesis
+  if (!window.speechSynthesis) {
+    console.warn("Speech synthesis not available");
     return;
   }
 
@@ -71,10 +93,23 @@ export function speak(text: string, lang: string = "en-US") {
     utterance.voice = preferredVoice;
   }
 
-  window.speechSynthesis.speak(utterance);
+  // Return a promise that resolves when speech finishes
+  return new Promise<void>((resolve, reject) => {
+    utterance.onend = () => {
+      resolve();
+    };
+    utterance.onerror = (error) => {
+      reject(error);
+    };
+    window.speechSynthesis.speak(utterance);
+  });
 }
 
 export function stopSpeaking() {
+  // Stop Eleven Labs audio if playing
+  stopAudio();
+
+  // Stop browser speechSynthesis
   if (typeof window !== "undefined" && window.speechSynthesis) {
     window.speechSynthesis.cancel();
   }

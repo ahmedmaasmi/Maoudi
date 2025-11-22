@@ -162,6 +162,11 @@ ALLOWED_ORIGINS=http://localhost:3000,exp://*,http://localhost:5005
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:4000
 NEXT_PUBLIC_ENABLE_VOICE=true
+
+# Eleven Labs TTS (Optional - for high-quality voice synthesis)
+# Get your API key from: https://elevenlabs.io/
+# Free tier includes 10,000 characters/month
+NEXT_PUBLIC_ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
 ```
 
 #### `apps/mcp/.env`

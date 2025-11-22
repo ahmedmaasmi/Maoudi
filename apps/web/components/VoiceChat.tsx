@@ -374,6 +374,7 @@ export default function VoiceChat() {
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const isMutedRef = useRef(isMuted);
   const lastTranscriptRef = useRef<{ text: string; time: number } | null>(null);
+  const shouldAutoRestartRef = useRef(false);
 
   const loadChats = useCallback(async () => {
     try {
@@ -414,6 +415,8 @@ export default function VoiceChat() {
   }, [isMuted]);
 
   const stopListening = useCallback(() => {
+    // Disable auto-restart when manually stopping
+    shouldAutoRestartRef.current = false;
     if (recognitionRef.current) {
       try {
         recognitionRef.current.onresult = null as any;
@@ -484,7 +487,8 @@ export default function VoiceChat() {
         if (!transcript) {
           return;
         }
-        setTextInput(transcript);
+        // Clear text input after getting transcript
+        setTextInput("");
         const now = Date.now();
         const last = lastTranscriptRef.current;
         if (!last || last.text !== transcript || now - last.time > 1500) {
@@ -501,7 +505,7 @@ export default function VoiceChat() {
       }
     };
 
-    const handleResponse = (data: VoiceAgentMessage) => {
+    const handleResponse = async (data: VoiceAgentMessage) => {
       const formatted = formatAgentResponseText(data.text, data.tool_result);
       if (!formatted) {
         return;
@@ -513,7 +517,17 @@ export default function VoiceChat() {
       };
       setMessages((prev) => [...prev, assistantMessage]);
       if (!isMutedRef.current) {
-        speak(formatted);
+        await speak(formatted);
+        // Auto-restart recording if browser STT is active (not using live voice agent)
+        // Note: When using live voice agent, even with browser STT fallback, we don't auto-restart
+        if (!useLiveVoiceAgent && shouldAutoRestartRef.current && !isMutedRef.current) {
+          // Small delay before restarting to ensure speech is fully finished
+          setTimeout(() => {
+            if (shouldAutoRestartRef.current && !isListening) {
+              startListening();
+            }
+          }, 500);
+        }
       }
       setIsProcessing(false);
     };
@@ -639,7 +653,8 @@ export default function VoiceChat() {
   };
 
   const startListening = async () => {
-    greetUser();
+    // Disable auto-restart when manually starting (user clicked button)
+    shouldAutoRestartRef.current = false;
 
     if (useLiveVoiceAgent) {
       const client = voiceAgentRef.current;
@@ -683,7 +698,10 @@ export default function VoiceChat() {
             try {
               const transcript = event.results[0][0].transcript;
               if (transcript && transcript.trim()) {
-                setTextInput(transcript);
+                // Clear text input after getting transcript
+                setTextInput("");
+                // Don't enable auto-restart when using live voice agent (even with browser STT fallback)
+                // Auto-restart is only for pure browser STT mode
                 
                 // Add user message to chat
                 const userMessage: ChatMessage = {
@@ -842,7 +860,10 @@ export default function VoiceChat() {
         try {
           const transcript = event.results[0][0].transcript;
           if (transcript && transcript.trim()) {
-            setTextInput(transcript);
+            // Clear text input after getting transcript
+            setTextInput("");
+            // Enable auto-restart for browser STT mode
+            shouldAutoRestartRef.current = true;
             await handleUserMessage(transcript);
           }
         } catch (error) {
@@ -1020,7 +1041,16 @@ export default function VoiceChat() {
 
       setMessages((prev) => [...prev, assistantMessage]);
       if (!isMuted) {
-        speak(response);
+        await speak(response);
+        // Auto-restart recording if browser STT is active and not using live voice agent
+        if (!useLiveVoiceAgent && shouldAutoRestartRef.current && !isMuted) {
+          // Small delay before restarting to ensure speech is fully finished
+          setTimeout(() => {
+            if (shouldAutoRestartRef.current && !isListening) {
+              startListening();
+            }
+          }, 500);
+        }
       }
     } catch (error) {
       console.error("Error processing message:", error);
@@ -1031,7 +1061,15 @@ export default function VoiceChat() {
       };
       setMessages((prev) => [...prev, errorMessage]);
       if (!isMuted) {
-        speak("Sorry, I encountered an error. Please try again.");
+        await speak("Sorry, I encountered an error. Please try again.");
+        // Auto-restart recording if browser STT is active and not using live voice agent
+        if (!useLiveVoiceAgent && shouldAutoRestartRef.current && !isMuted) {
+          setTimeout(() => {
+            if (shouldAutoRestartRef.current && !isListening) {
+              startListening();
+            }
+          }, 500);
+        }
       }
     } finally {
       setIsProcessing(false);
