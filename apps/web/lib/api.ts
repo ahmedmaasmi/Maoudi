@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosInstance } from "axios";
 import type {
   BookingRequest,
   ScheduleAppointmentRequest,
@@ -203,6 +203,27 @@ export const apiClient = {
       params: specialty ? { specialty } : {},
     });
     return response.data.doctors;
+  },
+
+  // Voice Agent Service (Live Voice MCP Agent)
+  voiceAgent: {
+    getUrl: () => {
+      return process.env.NEXT_PUBLIC_VOICE_AGENT_URL || "http://localhost:5007";
+    },
+    
+    chat: async (message: string, location?: { lat: number; lng: number }, chatId?: string) => {
+      const voiceAgentUrl = process.env.NEXT_PUBLIC_VOICE_AGENT_URL || "http://localhost:5007";
+      const response = await axios.post<{
+        response: string;
+        tool_result?: any;
+        chatId?: string;
+      }>(`${voiceAgentUrl}/chat`, {
+        message,
+        location,
+        chatId,
+      });
+      return response.data;
+    },
   },
 };
 

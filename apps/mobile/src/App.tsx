@@ -25,6 +25,7 @@ export default function App() {
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [hasPermissions, setHasPermissions] = useState(false);
+  const [useLiveVoiceAgent, setUseLiveVoiceAgent] = useState(false);
 
   useEffect(() => {
     requestPermissions();
@@ -53,6 +54,34 @@ export default function App() {
     setIsProcessing(true);
 
     try {
+      // Use live voice agent if enabled
+      if (useLiveVoiceAgent) {
+        let location: { lat: number; lng: number } | undefined;
+        try {
+          const loc = await Location.getCurrentPositionAsync();
+          location = {
+            lat: loc.coords.latitude,
+            lng: loc.coords.longitude,
+          };
+        } catch (error) {
+          // Location not available, continue without it
+        }
+
+        const result = await apiClient.voiceAgent.chat(message, location);
+        
+        const assistantMessage: Message = {
+          role: "assistant",
+          content: result.response,
+          timestamp: new Date(),
+        };
+
+        setMessages((prev) => [...prev, assistantMessage]);
+        voiceService.speak(result.response);
+        setIsProcessing(false);
+        return;
+      }
+
+      // Fallback to original flow
       const nluResult = await apiClient.parseMessage(message);
 
       let response = "";
@@ -166,6 +195,17 @@ export default function App() {
         {!hasPermissions && (
           <Text style={styles.warning}>Permissions needed for voice and location</Text>
         )}
+        <TouchableOpacity
+          style={[
+            styles.toggleButton,
+            useLiveVoiceAgent ? styles.toggleButtonActive : styles.toggleButtonInactive,
+          ]}
+          onPress={() => setUseLiveVoiceAgent(!useLiveVoiceAgent)}
+        >
+          <Text style={styles.toggleButtonText}>
+            {useLiveVoiceAgent ? "🔴 Live Agent (MCP)" : "⚪ Browser STT"}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.messagesContainer}>
@@ -251,6 +291,23 @@ const styles = StyleSheet.create({
   warning: {
     fontSize: 12,
     color: "#ff6b6b",
+  },
+  toggleButton: {
+    marginTop: 8,
+    padding: 8,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+  },
+  toggleButtonActive: {
+    backgroundColor: "#007AFF",
+  },
+  toggleButtonInactive: {
+    backgroundColor: "#E5E5EA",
+  },
+  toggleButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#fff",
   },
   messagesContainer: {
     flex: 1,

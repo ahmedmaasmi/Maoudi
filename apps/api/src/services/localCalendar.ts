@@ -67,23 +67,76 @@ export async function checkAvailability(
   const slots: Array<{ start: Date; end: Date }> = [];
   let currentTime = new Date(startRangeUtc);
 
-  // Default working hours: 9 AM to 5 PM (can be customized per doctor later)
-  const WORK_START_HOUR = 9;
-  const WORK_END_HOUR = 17;
+  // Default working hours: 8 AM to 6 PM (can be customized per doctor later)
+  const WORK_START_HOUR = 8;
+  const WORK_END_HOUR = 18;
+  
+  // Weekend handling: skip weekends (Saturday = 6, Sunday = 0)
+  const isWeekend = (date: Date) => {
+    const day = date.getUTCDay();
+    return day === 0 || day === 6;
+  };
 
-  while (currentTime < endRangeUtc) {
+  // Normalize start time to beginning of working hours if needed
+  if (currentTime.getUTCHours() < WORK_START_HOUR) {
+    currentTime.setUTCHours(WORK_START_HOUR, 0, 0, 0);
+  } else if (currentTime.getUTCHours() >= WORK_END_HOUR) {
+    // Move to next day
+    currentTime.setUTCDate(currentTime.getUTCDate() + 1);
+    currentTime.setUTCHours(WORK_START_HOUR, 0, 0, 0);
+  }
+
+  // Ensure we start on a weekday
+  while (isWeekend(currentTime)) {
+    const daysUntilMonday = (8 - currentTime.getUTCDay()) % 7 || 7;
+    currentTime.setUTCDate(currentTime.getUTCDate() + daysUntilMonday);
+    currentTime.setUTCHours(WORK_START_HOUR, 0, 0, 0);
+  }
+
+  const maxIterations = 10000; // Safety limit to prevent infinite loops
+  let iterations = 0;
+
+  while (currentTime < endRangeUtc && iterations < maxIterations) {
+    iterations++;
+    
     const slotEnd = new Date(currentTime.getTime() + slotMinutes * 60 * 1000);
     
-    if (slotEnd > endRangeUtc) break;
+    // If slot would extend beyond end range, stop
+    if (slotEnd > endRangeUtc) {
+      break;
+    }
+
+    // Skip weekends - move to next Monday
+    if (isWeekend(currentTime)) {
+      const daysUntilMonday = (8 - currentTime.getUTCDay()) % 7 || 7;
+      currentTime.setUTCDate(currentTime.getUTCDate() + daysUntilMonday);
+      currentTime.setUTCHours(WORK_START_HOUR, 0, 0, 0);
+      continue;
+    }
 
     // Check if slot is within working hours
     const hour = currentTime.getUTCHours();
-    if (hour < WORK_START_HOUR || hour >= WORK_END_HOUR) {
-      // Skip outside working hours, move to next day start
-      const nextDay = new Date(currentTime);
-      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-      nextDay.setUTCHours(WORK_START_HOUR, 0, 0, 0);
-      currentTime = nextDay;
+    const minute = currentTime.getUTCMinutes();
+    const slotEndHour = slotEnd.getUTCHours();
+    const slotEndMinute = slotEnd.getUTCMinutes();
+    
+    // If slot starts before working hours, move to start of working hours
+    if (hour < WORK_START_HOUR || (hour === WORK_START_HOUR && minute < 0)) {
+      currentTime.setUTCHours(WORK_START_HOUR, 0, 0, 0);
+      continue;
+    }
+    
+    // If slot starts at or after end of working hours, move to next day
+    if (hour >= WORK_END_HOUR) {
+      currentTime.setUTCDate(currentTime.getUTCDate() + 1);
+      currentTime.setUTCHours(WORK_START_HOUR, 0, 0, 0);
+      continue;
+    }
+    
+    // If slot extends beyond working hours, move to next day
+    if (slotEndHour > WORK_END_HOUR || (slotEndHour === WORK_END_HOUR && slotEndMinute > 0)) {
+      currentTime.setUTCDate(currentTime.getUTCDate() + 1);
+      currentTime.setUTCHours(WORK_START_HOUR, 0, 0, 0);
       continue;
     }
 
@@ -92,23 +145,39 @@ export async function checkAvailability(
       const aptStart = new Date(apt.startUtc);
       const aptEnd = new Date(apt.endUtc);
       
-      // Check for overlap
+      // Check for overlap: slots overlap if they share any time
       return (
-        (currentTime >= aptStart && currentTime < aptEnd) ||
-        (slotEnd > aptStart && slotEnd <= aptEnd) ||
-        (currentTime <= aptStart && slotEnd >= aptEnd)
+        (currentTime.getTime() >= aptStart.getTime() && currentTime.getTime() < aptEnd.getTime()) ||
+        (slotEnd.getTime() > aptStart.getTime() && slotEnd.getTime() <= aptEnd.getTime()) ||
+        (currentTime.getTime() <= aptStart.getTime() && slotEnd.getTime() >= aptEnd.getTime())
       );
     });
 
+    // If slot is not busy, add it
     if (!isBusy) {
-      slots.push({ start: new Date(currentTime), end: new Date(slotEnd) });
+      slots.push({ 
+        start: new Date(currentTime), 
+        end: new Date(slotEnd) 
+      });
     }
 
-    // Move to next slot
+    // Move to next slot (increment by slot duration)
     currentTime = new Date(currentTime.getTime() + slotMinutes * 60 * 1000);
   }
 
+  if (iterations >= maxIterations) {
+    console.warn(`[${timestamp}] 📅 LOCAL CALENDAR: Reached max iterations, stopping slot generation`);
+  }
+
   console.log(`[${timestamp}] 📅 LOCAL CALENDAR: Generated ${slots.length} available slots`);
+  
+  // If no slots were generated but we're within the date range, log a warning
+  if (slots.length === 0 && startRangeUtc < endRangeUtc) {
+    console.warn(`[${timestamp}] 📅 LOCAL CALENDAR: ⚠️ No slots generated. This might indicate an issue with the date range or working hours.`);
+    console.warn(`[${timestamp}] 📅 LOCAL CALENDAR: Start: ${startRangeUtc.toISOString()}, End: ${endRangeUtc.toISOString()}`);
+    console.warn(`[${timestamp}] 📅 LOCAL CALENDAR: Working hours: ${WORK_START_HOUR}:00 - ${WORK_END_HOUR}:00 UTC`);
+  }
+  
   return slots;
 }
 

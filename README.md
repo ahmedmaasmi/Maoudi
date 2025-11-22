@@ -51,6 +51,7 @@ This is a monorepo containing:
 - **Web Frontend** (`apps/web`): Next.js 14 with Tailwind CSS and Web Speech API
 - **Backend API** (`apps/api`): Express.js with TypeScript, Prisma, and Google Calendar integration
 - **MCP Server** (`apps/mcp`): Model Context Protocol server exposing booking tools
+- **Voice Agent Service** (`apps/voice-agent`): Live voice MCP agent using Ollama, Whisper, and MCP tools (Python)
 - **Mobile App** (`apps/mobile`): Expo React Native app (placeholder)
 - **Shared Package** (`packages/shared`): Common types and schemas
 
@@ -79,12 +80,21 @@ This is a monorepo containing:
 - **expo-speech** for TTS
 - **react-native-voice** for STT
 
+### Live Voice MCP Agent (Free Stack)
+- **FastAPI** for HTTP/WebSocket server
+- **Ollama** for local LLM (free, self-hosted)
+- **faster-whisper** for streaming speech-to-text
+- **MCP Client** for connecting to existing MCP tools
+- **WebSocket** for real-time audio streaming
+- **Client-side TTS** (browser `speechSynthesis` / mobile `expo-speech`)
+
 ## 📋 Prerequisites
 
 - **Node.js 20+**
 - **pnpm 9+** (package manager)
-- **Google Cloud Console** account (for OAuth credentials)
-- **Optional**: Ollama (for local LLM enhancement)
+- **Python 3.10+** (for voice agent service)
+- **Google Cloud Console** account (for OAuth credentials, optional)
+- **Ollama** (for live voice agent - see setup below)
 
 ## 🛠️ Setup
 
@@ -196,6 +206,72 @@ For mobile:
 pnpm --filter @voice-appointment/mobile start
 ```
 
+### 6. Live Voice MCP Agent Setup (Optional - Free Stack)
+
+The live voice MCP agent provides **real-time, low-latency voice interaction** using only free, self-hosted components:
+
+**Prerequisites:**
+1. **Install Ollama**:
+   ```bash
+   # Download from https://ollama.ai or:
+   # macOS/Linux:
+   curl -fsSL https://ollama.ai/install.sh | sh
+   
+   # Pull a model (small, fast model recommended):
+   ollama pull deepseek-r1:1.5b
+   # Or use even smaller:
+   ollama pull llama3.2:1b
+   ```
+
+2. **Set up Voice Agent Service**:
+   ```bash
+   cd apps/voice-agent
+
+   # Create a virtual environment (if you don't have one already)
+   python -m venv venv
+
+   # Activate the virtual environment:
+   # On Windows:
+   venv\Scripts\activate
+   # On macOS/Linux:
+   source venv/bin/activate
+   ```
+   # Install dependencies
+   pip install -r requirements.txt
+   
+   # Configure environment
+   cp .env.example .env
+   # Edit .env with your settings (API_BASE_URL, API_KEY, etc.)
+   ```
+
+3. **Start Voice Agent Service**:
+   ```bash
+   # From apps/voice-agent directory:
+   python -m src.server
+   # Or:
+   uvicorn src.server:app --host 0.0.0.0 --port 5007 --reload
+   ```
+
+4. **Enable in Web/Mobile Clients**:
+   - **Web**: Toggle "Live Agent" button in VoiceChat component
+   - **Mobile**: Toggle "Live Agent (MCP)" button in app header
+   - Or set environment variable: `NEXT_PUBLIC_VOICE_AGENT_URL=http://localhost:5007`
+
+**How it works:**
+- **STT**: Local Whisper model processes audio streams
+- **LLM**: Local Ollama model handles reasoning and tool calls
+- **MCP Tools**: Connects to your existing `apps/mcp` server via Express API
+- **TTS**: Client-side (browser/mobile) - no server TTS needed
+- **WebSocket**: Real-time audio streaming for low latency
+
+**Benefits:**
+- ✅ **100% Free** - No API costs, everything runs locally
+- ✅ **Low Latency** - Real-time voice interaction
+- ✅ **Privacy** - All processing happens on your machine
+- ✅ **MCP Integration** - Uses your existing MCP tools seamlessly
+
+See `apps/voice-agent/README.md` for detailed documentation.
+
 ## 📁 Project Structure
 
 ```
@@ -213,6 +289,12 @@ pnpm --filter @voice-appointment/mobile start
 │   ├── mcp/              # MCP server
 │   │   └── src/
 │   │       └── index.ts  # MCP tools definition
+│   ├── voice-agent/      # Live voice MCP agent (Python)
+│   │   ├── src/
+│   │   │   ├── agent.py  # Voice agent with Ollama + MCP
+│   │   │   ├── server.py # FastAPI WebSocket server
+│   │   │   └── mcp_client.py # MCP client
+│   │   └── requirements.txt
 │   └── mobile/           # Expo React Native
 │       └── src/
 ├── packages/
@@ -349,13 +431,27 @@ The MCP server exposes the following tools for AI agents:
 ## 🎤 Voice Features
 
 ### Web (Browser)
-- **Speech Recognition**: Uses `window.SpeechRecognition` (Chrome/Edge)
-- **Speech Synthesis**: Uses `speechSynthesis` API
+- **Speech Recognition**: 
+  - **Browser STT Mode**: Uses `window.SpeechRecognition` (Chrome/Edge) - free, browser-native
+  - **Live Voice Agent Mode**: WebSocket streaming to voice agent service with local Whisper STT
+- **Speech Synthesis**: Uses `speechSynthesis` API (client-side, free)
 - Real-time transcription and voice responses
+- Toggle between Browser STT and Live Voice Agent modes
 
 ### Mobile
-- **TTS**: `expo-speech` (cross-platform)
-- **STT**: `@react-native-voice/voice` (Android supported, iOS placeholder)
+- **TTS**: `expo-speech` (cross-platform, free)
+- **STT**: 
+  - **Browser STT Mode**: `@react-native-voice/voice` (Android supported, iOS placeholder)
+  - **Live Voice Agent Mode**: HTTP endpoint to voice agent service
+- Toggle between Browser STT and Live Voice Agent modes
+
+### Live Voice MCP Agent (Optional)
+- **STT**: Local Whisper model (faster-whisper) - streaming, low-latency
+- **LLM**: Local Ollama model (deepseek-r1, llama3.2, etc.) - free, self-hosted
+- **MCP Integration**: Connects to existing MCP tools via Express API
+- **WebSocket**: Real-time audio streaming for web clients
+- **HTTP Fallback**: Text-based chat endpoint for mobile clients
+- **100% Free**: No API costs, all processing local
 
 ## 🔒 Security
 
