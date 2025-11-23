@@ -175,7 +175,6 @@ const formatStatsDetails = (stats: any): string | undefined => {
       } | Cancelled: ${stats.totals.cancelled ?? 0}`
     );
   }
-
   if (Array.isArray(stats.buckets) && stats.buckets.length > 0) {
     lines.push("", "Buckets:");
     stats.buckets.slice(0, 5).forEach((bucket: any) => {
