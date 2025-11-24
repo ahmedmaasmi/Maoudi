@@ -6,11 +6,13 @@
 const VOICE_AGENT_URL = process.env.NEXT_PUBLIC_VOICE_AGENT_URL || "http://localhost:5007";
 const WS_URL = VOICE_AGENT_URL.replace("http://", "ws://").replace("https://", "wss://");
 
+import { ToolResult } from "./formatters";
+
 export interface VoiceAgentMessage {
   type: "transcript" | "response" | "status" | "error";
   text?: string;
   is_final?: boolean;
-  tool_result?: any;
+  tool_result?: ToolResult;
   message?: string;
 }
 
