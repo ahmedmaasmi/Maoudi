@@ -86,9 +86,7 @@ I need a cardiologist near my current location. My name is Ahmed, email is ahmed
     (Click "New Chat" button)
     I need a dermatologist. My name is Sarah, email is sarah@gmail.com, tomorrow at 2pm in New York.
 
-26. MULTI-CHAT - Switch Back:
-    (Switch to first chat using chat list)
-    What's my appointment?
+
 
 === TESTING TIPS ===
 - Check API logs to see the complete flow

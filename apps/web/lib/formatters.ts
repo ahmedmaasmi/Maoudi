@@ -408,3 +408,4 @@ export function formatAgentResponseText(rawText?: string, toolResult?: ToolResul
   return baseText;
 }
 
+

@@ -94,3 +94,4 @@ export function useGeolocation() {
   return { getLocation, getLocationWithTimeout, clearCache };
 }
 
+
